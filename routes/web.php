@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\GeojsonUploadController;
+use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +24,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::resource('kegiatan', KegiatanController::class);
+    Route::patch('kegiatan/{kegiatan}/status', [KegiatanController::class, 'updateStatus'])
+        ->name('kegiatan.updateStatus');
+
+    Route::get('kegiatan/{kegiatan}/geojson/create', [GeojsonUploadController::class, 'create'])
+        ->name('kegiatan.geojson.create');
+    Route::post('kegiatan/{kegiatan}/geojson', [GeojsonUploadController::class, 'store'])
+        ->name('kegiatan.geojson.store');
+    Route::delete('kegiatan/{kegiatan}/geojson/{upload}', [GeojsonUploadController::class, 'destroy'])
+        ->name('kegiatan.geojson.destroy');
 });
 
 // Rute khusus admin — tambahkan di sini
