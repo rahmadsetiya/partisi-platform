@@ -34,32 +34,18 @@ class PetugasController extends Controller
         ]);
     }
 
-    public function create()
-    {
-        return Inertia::render('Petugas/Create');
-    }
-
     public function store(StorePetugasRequest $request)
     {
         Petugas::create($request->validated());
 
-        return redirect()->route('petugas.index')
-            ->with('success', 'Petugas berhasil ditambahkan.');
-    }
-
-    public function edit(Petugas $petugas)
-    {
-        return Inertia::render('Petugas/Edit', [
-            'petugas' => $petugas,
-        ]);
+        return back()->with('success', 'Petugas berhasil ditambahkan.');
     }
 
     public function update(UpdatePetugasRequest $request, Petugas $petugas)
     {
         $petugas->update($request->validated());
 
-        return redirect()->route('petugas.index')
-            ->with('success', 'Petugas berhasil diperbarui.');
+        return back()->with('success', 'Petugas berhasil diperbarui.');
     }
 
     public function destroy(Petugas $petugas)
@@ -70,8 +56,7 @@ class PetugasController extends Controller
 
         $petugas->delete();
 
-        return redirect()->route('petugas.index')
-            ->with('success', 'Petugas berhasil dihapus.');
+        return back()->with('success', 'Petugas berhasil dihapus.');
     }
 
     public function import(Request $request)

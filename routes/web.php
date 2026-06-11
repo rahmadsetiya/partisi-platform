@@ -52,7 +52,7 @@ Route::middleware('auth')->group(function () {
     // CRUD Petugas (master data)
     Route::post('petugas/import', [PetugasController::class, 'import'])->name('petugas.import');
     Route::resource('petugas', PetugasController::class)
-        ->except('show')
+        ->only(['index', 'store', 'update', 'destroy'])
         ->parameters(['petugas' => 'petugas']);
 
     // Assign petugas ke kegiatan (PPL/PML)

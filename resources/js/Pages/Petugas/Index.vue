@@ -1,8 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import DangerButton from '@/Components/DangerButton.vue';
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import TextInput from '@/Components/TextInput.vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import * as XLSX from 'xlsx';
 
@@ -18,14 +23,50 @@ function submitCari() {
     router.get(route('petugas.index'), { q: cari.value }, { preserveState: true, replace: true });
 }
 
-function hapus(p) {
-    if (confirm(`Hapus petugas "${p.nama}"?`)) {
-        router.delete(route('petugas.destroy', p.id));
+function gotoPage(url) {
+    if (url) router.get(url, {}, { preserveState: true, preserveScroll: true });
+}
+
+// ---------- Modal Tambah/Edit ----------
+const showForm = ref(false);
+const editingId = ref(null);
+const form = useForm({ nama: '', nip: '', telepon: '', satker: '' });
+
+function bukaTambah() {
+    editingId.value = null;
+    form.reset();
+    form.clearErrors();
+    showForm.value = true;
+}
+
+function bukaEdit(p) {
+    editingId.value = p.id;
+    form.clearErrors();
+    form.nama = p.nama;
+    form.nip = p.nip ?? '';
+    form.telepon = p.telepon ?? '';
+    form.satker = p.satker ?? '';
+    showForm.value = true;
+}
+
+function simpan() {
+    const opts = { preserveScroll: true, onSuccess: () => { showForm.value = false; } };
+    if (editingId.value) {
+        form.put(route('petugas.update', editingId.value), opts);
+    } else {
+        form.post(route('petugas.store'), opts);
     }
 }
 
-function gotoPage(url) {
-    if (url) router.get(url, {}, { preserveState: true, preserveScroll: true });
+// ---------- Modal Hapus ----------
+const confirmingDelete = ref(null);
+const deleteForm = useForm({});
+
+function hapus() {
+    deleteForm.delete(route('petugas.destroy', confirmingDelete.value.id), {
+        preserveScroll: true,
+        onFinish: () => { confirmingDelete.value = null; },
+    });
 }
 
 // ---------- Import Excel/CSV ----------
@@ -101,10 +142,10 @@ function kirimImport() {
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">Daftar Petugas</h2>
                 <div class="flex items-center gap-2">
                     <SecondaryButton @click="showImport = !showImport">Import Excel/CSV</SecondaryButton>
-                    <Link :href="route('petugas.create')"
+                    <button type="button" @click="bukaTambah"
                         class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
                         + Tambah Petugas
-                    </Link>
+                    </button>
                 </div>
             </div>
         </template>
@@ -141,7 +182,7 @@ function kirimImport() {
 
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div v-if="petugas.data.length === 0" class="p-8 text-center text-gray-500">
-                        Belum ada petugas. <Link :href="route('petugas.create')" class="text-indigo-600 hover:underline">Tambah petugas pertama.</Link>
+                        Belum ada petugas. <button type="button" @click="bukaTambah" class="text-indigo-600 hover:underline">Tambah petugas pertama.</button>
                     </div>
 
                     <table v-else class="min-w-full divide-y divide-gray-200">
@@ -163,8 +204,8 @@ function kirimImport() {
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ p.satker ?? '-' }}</td>
                                 <td class="px-6 py-4 text-center text-sm text-gray-600">{{ p.kegiatan_petugas_count }}</td>
                                 <td class="px-6 py-4 text-right text-sm">
-                                    <Link :href="route('petugas.edit', p.id)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</Link>
-                                    <button @click="hapus(p)" class="text-red-600 hover:text-red-800">Hapus</button>
+                                    <button type="button" @click="bukaEdit(p)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</button>
+                                    <button type="button" @click="confirmingDelete = p" class="text-red-600 hover:text-red-800">Hapus</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -180,5 +221,63 @@ function kirimImport() {
                 </div>
             </div>
         </div>
+
+        <!-- Modal Tambah/Edit -->
+        <Modal :show="showForm" max-width="lg" @close="showForm = false">
+            <form @submit.prevent="simpan" class="p-6 space-y-5">
+                <h2 class="text-lg font-medium text-gray-900">
+                    {{ editingId ? 'Edit Petugas' : 'Tambah Petugas' }}
+                </h2>
+
+                <div>
+                    <InputLabel for="m_nama" value="Nama Petugas" />
+                    <TextInput id="m_nama" v-model="form.nama" type="text" class="mt-1 block w-full" required />
+                    <InputError :message="form.errors.nama" class="mt-1" />
+                </div>
+
+                <div>
+                    <InputLabel for="m_nip" value="NIP (opsional)" />
+                    <TextInput id="m_nip" v-model="form.nip" type="text" class="mt-1 block w-full" />
+                    <InputError :message="form.errors.nip" class="mt-1" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <InputLabel for="m_telepon" value="Telepon (opsional)" />
+                        <TextInput id="m_telepon" v-model="form.telepon" type="text" class="mt-1 block w-full" />
+                        <InputError :message="form.errors.telepon" class="mt-1" />
+                    </div>
+                    <div>
+                        <InputLabel for="m_satker" value="Satuan Kerja (opsional)" />
+                        <TextInput id="m_satker" v-model="form.satker" type="text" class="mt-1 block w-full" />
+                        <InputError :message="form.errors.satker" class="mt-1" />
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-1">
+                    <SecondaryButton type="button" @click="showForm = false">Batal</SecondaryButton>
+                    <PrimaryButton :disabled="form.processing">
+                        {{ form.processing ? 'Menyimpan...' : (editingId ? 'Simpan Perubahan' : 'Simpan Petugas') }}
+                    </PrimaryButton>
+                </div>
+            </form>
+        </Modal>
+
+        <!-- Modal Hapus -->
+        <Modal :show="confirmingDelete !== null" max-width="md" @close="confirmingDelete = null">
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900">Hapus petugas?</h2>
+                <p class="mt-2 text-sm text-gray-600">
+                    Yakin menghapus <span class="font-medium">{{ confirmingDelete?.nama }}</span>?
+                    Tindakan ini tidak dapat dibatalkan.
+                </p>
+                <div class="mt-6 flex items-center justify-end gap-3">
+                    <SecondaryButton type="button" @click="confirmingDelete = null">Batal</SecondaryButton>
+                    <DangerButton :disabled="deleteForm.processing" @click="hapus">
+                        {{ deleteForm.processing ? 'Menghapus...' : 'Hapus' }}
+                    </DangerButton>
+                </div>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>
