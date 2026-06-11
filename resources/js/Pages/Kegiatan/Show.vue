@@ -10,9 +10,32 @@ const props = defineProps({
     jumlahWilayah: Number,
     muatanTerisi: Number,
     totalMuatan: Number,
+    petugasPpl: Array,
+    petugasPml: Array,
+    petugasTersedia: Array,
 });
 
 const flash = computed(() => usePage().props.flash);
+
+// ---------- Assign petugas ----------
+const tambahPpl = useForm({ petugas_id: '', peran: 'ppl' });
+const tambahPml = useForm({ petugas_id: '', peran: 'pml' });
+
+function assign(form) {
+    if (!form.petugas_id) return;
+    form.post(route('kegiatan.petugas.store', props.kegiatan.id), {
+        preserveScroll: true,
+        onSuccess: () => form.reset('petugas_id'),
+    });
+}
+
+function lepasPetugas(kp) {
+    if (confirm(`Lepas ${kp.label} (${kp.petugas?.nama}) dari kegiatan ini?`)) {
+        router.delete(route('kegiatan.petugas.destroy', { kegiatan: props.kegiatan.id, kegiatanPetugas: kp.id }), {
+            preserveScroll: true,
+        });
+    }
+}
 
 const statusStyle = {
     draft:   'bg-gray-100 text-gray-700',
@@ -155,6 +178,83 @@ function formatTanggal(str) {
                                     {{ jumlahWilayah ? 'Kelola GeoJSON' : 'Upload GeoJSON' }}
                                 </SecondaryButton>
                             </Link>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Petugas Lapangan -->
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <h4 class="text-sm font-semibold text-gray-700 mb-4">Petugas Lapangan</h4>
+
+                        <div v-if="!petugasTersedia.length && !petugasPpl.length && !petugasPml.length"
+                            class="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 mb-4">
+                            Belum ada data petugas. Tambahkan dulu di menu
+                            <Link :href="route('petugas.index')" class="font-medium underline">Petugas</Link>.
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- PPL -->
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                                    PPL — Pencacah ({{ petugasPpl.length }})
+                                </p>
+                                <ul class="space-y-1 mb-3">
+                                    <li v-for="kp in petugasPpl" :key="kp.id"
+                                        class="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm">
+                                        <span>
+                                            <span class="font-medium text-gray-700">{{ kp.label }}</span>
+                                            <span class="text-gray-600"> · {{ kp.petugas?.nama }}</span>
+                                            <span v-if="kp.petugas?.nip" class="text-gray-400"> ({{ kp.petugas.nip }})</span>
+                                        </span>
+                                        <button @click="lepasPetugas(kp)" class="text-red-500 hover:text-red-700 text-xs">Lepas</button>
+                                    </li>
+                                    <li v-if="!petugasPpl.length" class="text-sm text-gray-400 px-1">Belum ada PPL.</li>
+                                </ul>
+                                <div class="flex items-center gap-2">
+                                    <select v-model="tambahPpl.petugas_id"
+                                        class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                        <option value="">-- Pilih petugas --</option>
+                                        <option v-for="p in petugasTersedia" :key="p.id" :value="p.id">
+                                            {{ p.nama }}{{ p.nip ? ' (' + p.nip + ')' : '' }}
+                                        </option>
+                                    </select>
+                                    <SecondaryButton :disabled="!tambahPpl.petugas_id || tambahPpl.processing" @click="assign(tambahPpl)">
+                                        + PPL
+                                    </SecondaryButton>
+                                </div>
+                            </div>
+
+                            <!-- PML -->
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                                    PML — Pengawas ({{ petugasPml.length }})
+                                </p>
+                                <ul class="space-y-1 mb-3">
+                                    <li v-for="kp in petugasPml" :key="kp.id"
+                                        class="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm">
+                                        <span>
+                                            <span class="font-medium text-gray-700">{{ kp.label }}</span>
+                                            <span class="text-gray-600"> · {{ kp.petugas?.nama }}</span>
+                                            <span v-if="kp.petugas?.nip" class="text-gray-400"> ({{ kp.petugas.nip }})</span>
+                                        </span>
+                                        <button @click="lepasPetugas(kp)" class="text-red-500 hover:text-red-700 text-xs">Lepas</button>
+                                    </li>
+                                    <li v-if="!petugasPml.length" class="text-sm text-gray-400 px-1">Belum ada PML.</li>
+                                </ul>
+                                <div class="flex items-center gap-2">
+                                    <select v-model="tambahPml.petugas_id"
+                                        class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                        <option value="">-- Pilih petugas --</option>
+                                        <option v-for="p in petugasTersedia" :key="p.id" :value="p.id">
+                                            {{ p.nama }}{{ p.nip ? ' (' + p.nip + ')' : '' }}
+                                        </option>
+                                    </select>
+                                    <SecondaryButton :disabled="!tambahPml.petugas_id || tambahPml.processing" @click="assign(tambahPml)">
+                                        + PML
+                                    </SecondaryButton>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

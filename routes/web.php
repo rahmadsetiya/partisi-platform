@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\GeojsonUploadController;
 use App\Http\Controllers\KegiatanController;
+use App\Http\Controllers\KegiatanPetugasController;
 use App\Http\Controllers\MuatanController;
+use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +48,18 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.muatan.import');
     Route::patch('kegiatan/{kegiatan}/muatan/manual', [MuatanController::class, 'manual'])
         ->name('kegiatan.muatan.manual');
+
+    // CRUD Petugas (master data)
+    Route::post('petugas/import', [PetugasController::class, 'import'])->name('petugas.import');
+    Route::resource('petugas', PetugasController::class)
+        ->except('show')
+        ->parameters(['petugas' => 'petugas']);
+
+    // Assign petugas ke kegiatan (PPL/PML)
+    Route::post('kegiatan/{kegiatan}/petugas', [KegiatanPetugasController::class, 'store'])
+        ->name('kegiatan.petugas.store');
+    Route::delete('kegiatan/{kegiatan}/petugas/{kegiatanPetugas}', [KegiatanPetugasController::class, 'destroy'])
+        ->name('kegiatan.petugas.destroy');
 });
 
 // Rute khusus admin — tambahkan di sini

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreKegiatanRequest;
 use App\Http\Requests\UpdateKegiatanRequest;
 use App\Models\Kegiatan;
+use App\Models\KegiatanPetugas;
+use App\Models\Petugas;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -46,11 +48,24 @@ class KegiatanController extends Controller
             ->selectRaw('COUNT(*) as total, COUNT(muatan) as terisi, COALESCE(SUM(muatan),0) as total_muatan')
             ->first();
 
+        $petugas = KegiatanPetugas::where('kegiatan_id', $kegiatan->id)
+            ->with('petugas:id,nama,nip')
+            ->orderBy('group_id')
+            ->get(['id', 'petugas_id', 'peran', 'label', 'group_id']);
+
+        $assigned = $petugas->pluck('petugas_id')->all();
+        $petugasTersedia = Petugas::whereNotIn('id', $assigned)
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'nip']);
+
         return Inertia::render('Kegiatan/Show', [
             'kegiatan' => $kegiatan,
             'jumlahWilayah' => (int) $muatan->total,
             'muatanTerisi' => (int) $muatan->terisi,
             'totalMuatan' => (int) $muatan->total_muatan,
+            'petugasPpl' => $petugas->where('peran', 'ppl')->values(),
+            'petugasPml' => $petugas->where('peran', 'pml')->values(),
+            'petugasTersedia' => $petugasTersedia,
         ]);
     }
 

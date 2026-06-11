@@ -45,6 +45,12 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Kegiatan
                                 </NavLink>
+                                <NavLink
+                                    :href="route('petugas.index')"
+                                    :active="route().current('petugas.*')"
+                                >
+                                    Petugas
+                                </NavLink>
                             </div>
                         </div>
 
@@ -157,6 +163,12 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('kegiatan.*')"
                         >
                             Kegiatan
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('petugas.index')"
+                            :active="route().current('petugas.*')"
+                        >
+                            Petugas
                         </ResponsiveNavLink>
                     </div>
 
