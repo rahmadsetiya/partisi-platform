@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class KegiatanWilayah extends Model
 {
+    protected $table = 'kegiatan_wilayah';
+
     public $timestamps = false;
 
     protected $fillable = [

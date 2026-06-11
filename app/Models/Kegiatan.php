@@ -8,13 +8,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Kegiatan extends Model
 {
+    protected $table = 'kegiatan';
+
     protected $fillable = [
         'nama', 'jenis', 'tahun', 'gelombang',
         'tanggal_mulai', 'tanggal_selesai', 'deskripsi', 'status', 'created_by',
     ];
 
     protected $casts = [
-        'tanggal_mulai'   => 'date',
+        'tanggal_mulai' => 'date',
         'tanggal_selesai' => 'date',
     ];
 

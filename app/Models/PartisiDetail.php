@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PartisiDetail extends Model
 {
+    protected $table = 'partisi_detail';
+
     public $timestamps = false;
 
     protected $fillable = [

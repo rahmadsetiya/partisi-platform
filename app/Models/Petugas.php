@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Petugas extends Model
 {
+    protected $table = 'petugas';
+
     protected $fillable = [
         'nama', 'nip', 'telepon', 'satker',
     ];

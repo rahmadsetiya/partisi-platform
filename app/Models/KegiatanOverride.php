@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class KegiatanOverride extends Model
 {
+    protected $table = 'kegiatan_override';
+
     public $timestamps = false;
 
     protected $fillable = [

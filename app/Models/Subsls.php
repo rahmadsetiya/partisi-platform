@@ -18,10 +18,10 @@ class Subsls extends Model
     ];
 
     protected $casts = [
-        'geometry'     => 'array',
+        'geometry' => 'array',
         'centroid_lat' => 'double',
         'centroid_lon' => 'double',
-        'luas'         => 'double',
+        'luas' => 'double',
     ];
 
     public function kegiatanWilayah(): HasMany

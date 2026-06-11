@@ -16,7 +16,7 @@ class GeojsonUpload extends Model
 
     protected $casts = [
         'uploaded_at' => 'datetime',
-        'epsg'        => 'integer',
+        'epsg' => 'integer',
     ];
 
     public function kegiatan(): BelongsTo

@@ -16,8 +16,8 @@ class SesiPartisi extends Model
     ];
 
     protected $casts = [
-        'config'       => 'array',
-        'cv'           => 'double',
+        'config' => 'array',
+        'cv' => 'double',
         'finalized_at' => 'datetime',
     ];
 
