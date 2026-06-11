@@ -8,6 +8,8 @@ import { computed } from 'vue';
 const props = defineProps({
     kegiatan: Object,
     jumlahWilayah: Number,
+    muatanTerisi: Number,
+    totalMuatan: Number,
 });
 
 const flash = computed(() => usePage().props.flash);
@@ -133,12 +135,27 @@ function formatTanggal(str) {
                                 </template>
                                 <span v-else class="text-gray-400">Belum ada data wilayah.</span>
                             </p>
+                            <p v-if="jumlahWilayah" class="mt-1 text-sm">
+                                <template v-if="muatanTerisi === jumlahWilayah">
+                                    <span class="text-green-600 font-medium">Muatan lengkap</span>
+                                    <span class="text-gray-500"> · total {{ totalMuatan.toLocaleString('id-ID') }}</span>
+                                </template>
+                                <template v-else>
+                                    <span class="text-amber-600 font-medium">Muatan {{ muatanTerisi.toLocaleString('id-ID') }}/{{ jumlahWilayah.toLocaleString('id-ID') }} terisi</span>
+                                    <span class="text-gray-400"> · lengkapi lewat Kelola Muatan</span>
+                                </template>
+                            </p>
                         </div>
-                        <Link :href="route('kegiatan.geojson.create', kegiatan.id)">
-                            <SecondaryButton>
-                                {{ jumlahWilayah ? 'Kelola GeoJSON' : 'Upload GeoJSON' }}
-                            </SecondaryButton>
-                        </Link>
+                        <div class="flex items-center gap-2">
+                            <Link v-if="jumlahWilayah" :href="route('kegiatan.muatan.index', kegiatan.id)">
+                                <SecondaryButton>Kelola Muatan</SecondaryButton>
+                            </Link>
+                            <Link :href="route('kegiatan.geojson.create', kegiatan.id)">
+                                <SecondaryButton>
+                                    {{ jumlahWilayah ? 'Kelola GeoJSON' : 'Upload GeoJSON' }}
+                                </SecondaryButton>
+                            </Link>
+                        </div>
                     </div>
                 </div>
 

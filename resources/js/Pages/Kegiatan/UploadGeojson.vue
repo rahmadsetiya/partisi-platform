@@ -18,10 +18,33 @@ const form = useForm({
     file: null,
     muatan_col: '',
     level: 'subsls',
+    sumber_muatan: 'kolom', // kolom | seragam | kosong
 });
 
 const preview = ref(null);
 const fileError = ref('');
+
+// Kolom identifier (idsubsls, kode/nama wilayah) — bukan kandidat muatan walau berisi angka.
+function isIdentifierCol(nama) {
+    return /^(idsubsls|idsls|kd|nm|kode)/i.test(nama);
+}
+function isMuatanKandidat(k) {
+    if (isIdentifierCol(k.nama)) return false;
+    return typeof k.contoh === 'number' || /^\d+(\.\d+)?$/.test(String(k.contoh ?? ''));
+}
+
+// Apakah ada kolom numerik yang bisa dijadikan muatan?
+const adaKolomNumerik = computed(() => {
+    if (!preview.value) return false;
+    return preview.value.kolom.some(isMuatanKandidat);
+});
+
+// Tombol submit boleh aktif?
+const bisaSubmit = computed(() => {
+    if (!preview.value || form.processing) return false;
+    if (form.sumber_muatan === 'kolom') return !!form.muatan_col;
+    return true; // seragam / kosong tidak butuh kolom
+});
 
 function onFileChange(e) {
     const file = e.target.files[0];
@@ -48,11 +71,14 @@ function onFileChange(e) {
             const kolom = Object.entries(firstProps).map(([nama, val]) => ({ nama, contoh: val }));
 
             const defaultCol = kolom.find(k => k.nama === 'Perkiraan_Jumlah_Muatan')?.nama
-                ?? kolom.find(k => typeof k.contoh === 'number' || /^\d+(\.\d+)?$/.test(String(k.contoh ?? '')))?.nama
+                ?? kolom.find(isMuatanKandidat)?.nama
                 ?? '';
             form.muatan_col = defaultCol;
 
             preview.value = { jumlah: geo.features.length, kolom };
+
+            // Auto-pilih sumber muatan: ada kolom muatan → "kolom", kalau tidak → "kosong" (isi nanti)
+            form.sumber_muatan = defaultCol ? 'kolom' : 'kosong';
         } catch {
             fileError.value = 'Gagal membaca file. Pastikan file adalah JSON yang valid.';
         }
@@ -170,19 +196,41 @@ function formatTanggal(str) {
                             <InputError :message="form.errors.file" class="mt-1" />
                         </div>
 
-                        <!-- Preview & pilih kolom muatan -->
+                        <!-- Preview & sumber muatan -->
                         <div v-if="preview" class="rounded-md bg-gray-50 border border-gray-200 p-4 space-y-4">
                             <p class="text-sm text-gray-700">
                                 <span class="font-semibold">{{ preview.jumlah.toLocaleString('id-ID') }}</span> fitur terdeteksi.
                             </p>
 
                             <div>
+                                <InputLabel value="Sumber Muatan" />
+                                <p class="text-xs text-gray-400 mb-2">Muatan = beban kerja per SubSLS (jumlah KK, RT, dll) untuk menyeimbangkan partisi.</p>
+                                <div class="space-y-2">
+                                    <label class="flex items-start gap-2 text-sm" :class="{ 'opacity-40': !adaKolomNumerik }">
+                                        <input type="radio" value="kolom" v-model="form.sumber_muatan" :disabled="!adaKolomNumerik" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                                        <span>
+                                            <span class="font-medium">Dari kolom GeoJSON</span>
+                                            <span v-if="!adaKolomNumerik" class="text-gray-400"> — tidak ada kolom angka terdeteksi</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-2 text-sm">
+                                        <input type="radio" value="seragam" v-model="form.sumber_muatan" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                                        <span><span class="font-medium">Seragam (semua = 1)</span> — partisi bagi rata jumlah SubSLS</span>
+                                    </label>
+                                    <label class="flex items-start gap-2 text-sm">
+                                        <input type="radio" value="kosong" v-model="form.sumber_muatan" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
+                                        <span><span class="font-medium">Isi nanti</span> — lewat menu Kelola Muatan (import Excel/CSV atau manual)</span>
+                                    </label>
+                                </div>
+                                <InputError :message="form.errors.sumber_muatan" class="mt-1" />
+                            </div>
+
+                            <div v-if="form.sumber_muatan === 'kolom'">
                                 <InputLabel for="muatan_col" value="Kolom Muatan" />
                                 <select
                                     id="muatan_col"
                                     v-model="form.muatan_col"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                    required
                                 >
                                     <option value="" disabled>-- Pilih kolom --</option>
                                     <option v-for="k in preview.kolom" :key="k.nama" :value="k.nama">
@@ -201,7 +249,7 @@ function formatTanggal(str) {
                             <Link :href="route('kegiatan.show', kegiatan.id)">
                                 <SecondaryButton type="button">Batal</SecondaryButton>
                             </Link>
-                            <PrimaryButton :disabled="form.processing || !preview || !form.muatan_col">
+                            <PrimaryButton :disabled="!bisaSubmit">
                                 {{ form.processing ? 'Memproses...' : 'Upload & Proses' }}
                             </PrimaryButton>
                         </div>

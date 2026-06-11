@@ -18,19 +18,21 @@ class GeojsonUploadController extends Controller
 
         return Inertia::render('Kegiatan/UploadGeojson', [
             'kegiatan' => $kegiatan,
-            'uploads'  => $uploads,
+            'uploads' => $uploads,
         ]);
     }
 
     public function store(Request $request, Kegiatan $kegiatan)
     {
         $request->validate([
-            'file'       => ['required', 'file', 'max:30720'],
-            'muatan_col' => ['required', 'string', 'max:100'],
-            'level'      => ['required', 'in:desa,subsls'],
+            'file' => ['required', 'file', 'max:30720'],
+            'level' => ['required', 'in:desa,subsls'],
+            'sumber_muatan' => ['required', 'in:kolom,seragam,kosong'],
+            // muatan_col hanya wajib kalau sumber = kolom
+            'muatan_col' => ['nullable', 'required_if:sumber_muatan,kolom', 'string', 'max:100'],
         ]);
 
-        $file    = $request->file('file');
+        $file = $request->file('file');
         $content = file_get_contents($file->getRealPath());
         $geoJson = json_decode($content, true);
 
@@ -38,10 +40,17 @@ class GeojsonUploadController extends Controller
             return back()->withErrors(['file' => 'File bukan FeatureCollection GeoJSON yang valid.']);
         }
 
-        $features  = $geoJson['features'];
-        $muatanCol = $request->muatan_col;
-        $jumlah    = count($features);
-        $now       = now()->toDateTimeString();
+        $features = $geoJson['features'];
+        $sumber = $request->sumber_muatan;
+        $jumlah = count($features);
+        $now = now()->toDateTimeString();
+
+        // Label sumber muatan disimpan di kolom muatan_col (audit trail)
+        $muatanCol = match ($sumber) {
+            'kolom' => $request->muatan_col,
+            'seragam' => '(seragam)',
+            'kosong' => null,
+        };
 
         $path = $file->store('geojson', 'local');
 
@@ -53,61 +62,73 @@ class GeojsonUploadController extends Controller
                 $subslsRows = [];
 
                 foreach ($chunk as $feature) {
-                    $props    = $feature['properties'] ?? [];
+                    $props = $feature['properties'] ?? [];
                     $idsubsls = isset($props['idsubsls']) ? (string) $props['idsubsls'] : null;
-                    if (! $idsubsls) continue;
+                    if (! $idsubsls) {
+                        continue;
+                    }
 
                     [$lat, $lon] = self::centroid($feature['geometry']);
 
                     $subslsRows[] = [
-                        'idsubsls'     => $idsubsls,
-                        'kdsubsls'     => (string) ($props['kdsubsls'] ?? ''),
-                        'kdprov'       => (string) ($props['kdprov'] ?? ''),
-                        'nmprov'       => (string) ($props['nmprov'] ?? ''),
-                        'kdkab'        => (string) ($props['kdkab'] ?? ''),
-                        'nmkab'        => (string) ($props['nmkab'] ?? ''),
-                        'kdkec'        => (string) ($props['kdkec'] ?? ''),
-                        'nmkec'        => (string) ($props['nmkec'] ?? ''),
-                        'kddesa'       => (string) ($props['kddesa'] ?? ''),
-                        'nmdesa'       => (string) ($props['nmdesa'] ?? ''),
-                        'kdsls'        => (string) ($props['kdsls'] ?? ''),
-                        'nmsls'        => (string) ($props['nmsls'] ?? ''),
-                        'idsls'        => isset($props['idsls']) ? (string) $props['idsls'] : null,
-                        'geometry'     => json_encode($feature['geometry']),
+                        'idsubsls' => $idsubsls,
+                        'kdsubsls' => (string) ($props['kdsubsls'] ?? ''),
+                        'kdprov' => (string) ($props['kdprov'] ?? ''),
+                        'nmprov' => (string) ($props['nmprov'] ?? ''),
+                        'kdkab' => (string) ($props['kdkab'] ?? ''),
+                        'nmkab' => (string) ($props['nmkab'] ?? ''),
+                        'kdkec' => (string) ($props['kdkec'] ?? ''),
+                        'nmkec' => (string) ($props['nmkec'] ?? ''),
+                        'kddesa' => (string) ($props['kddesa'] ?? ''),
+                        'nmdesa' => (string) ($props['nmdesa'] ?? ''),
+                        'kdsls' => (string) ($props['kdsls'] ?? ''),
+                        'nmsls' => (string) ($props['nmsls'] ?? ''),
+                        'idsls' => isset($props['idsls']) ? (string) $props['idsls'] : null,
+                        'geometry' => json_encode($feature['geometry']),
                         'centroid_lat' => $lat,
                         'centroid_lon' => $lon,
-                        'created_at'   => $now,
-                        'updated_at'   => $now,
+                        'created_at' => $now,
+                        'updated_at' => $now,
                     ];
                 }
 
-                if (empty($subslsRows)) continue;
+                if (empty($subslsRows)) {
+                    continue;
+                }
 
                 DB::table('subsls')->upsert(
                     $subslsRows,
                     ['idsubsls'],
                     ['kdsubsls', 'kdprov', 'nmprov', 'kdkab', 'nmkab',
-                     'kdkec', 'nmkec', 'kddesa', 'nmdesa', 'kdsls', 'nmsls',
-                     'idsls', 'geometry', 'centroid_lat', 'centroid_lon', 'updated_at'],
+                        'kdkec', 'nmkec', 'kddesa', 'nmdesa', 'kdsls', 'nmsls',
+                        'idsls', 'geometry', 'centroid_lat', 'centroid_lon', 'updated_at'],
                 );
 
                 $idsubslsList = array_column($subslsRows, 'idsubsls');
-                $subslsMap    = DB::table('subsls')
+                $subslsMap = DB::table('subsls')
                     ->whereIn('idsubsls', $idsubslsList)
                     ->pluck('id', 'idsubsls');
 
                 $wilayahRows = [];
                 foreach ($chunk as $feature) {
-                    $props    = $feature['properties'] ?? [];
+                    $props = $feature['properties'] ?? [];
                     $idsubsls = isset($props['idsubsls']) ? (string) $props['idsubsls'] : null;
-                    if (! $idsubsls || ! isset($subslsMap[$idsubsls])) continue;
+                    if (! $idsubsls || ! isset($subslsMap[$idsubsls])) {
+                        continue;
+                    }
+
+                    $muatan = match ($sumber) {
+                        'kolom' => (int) ($props[$muatanCol] ?? 0),
+                        'seragam' => 1,
+                        'kosong' => null,
+                    };
 
                     $wilayahRows[] = [
                         'kegiatan_id' => $kegiatan->id,
-                        'subsls_id'   => $subslsMap[$idsubsls],
-                        'muatan'      => (int) ($props[$muatanCol] ?? 0),
-                        'muatan_col'  => $muatanCol,
-                        'created_at'  => $now,
+                        'subsls_id' => $subslsMap[$idsubsls],
+                        'muatan' => $muatan,
+                        'muatan_col' => $muatanCol,
+                        'created_at' => $now,
                     ];
                 }
 
@@ -117,13 +138,13 @@ class GeojsonUploadController extends Controller
             }
 
             GeojsonUpload::create([
-                'kegiatan_id'  => $kegiatan->id,
-                'level'        => $request->level,
-                'nama_file'    => $file->getClientOriginalName(),
-                'path'         => $path,
-                'muatan_col'   => $muatanCol,
+                'kegiatan_id' => $kegiatan->id,
+                'level' => $request->level,
+                'nama_file' => $file->getClientOriginalName(),
+                'path' => $path,
+                'muatan_col' => $muatanCol,
                 'jumlah_fitur' => $jumlah,
-                'uploaded_by'  => $request->user()->id,
+                'uploaded_by' => $request->user()->id,
             ]);
 
             DB::commit();
@@ -131,11 +152,15 @@ class GeojsonUploadController extends Controller
             DB::rollBack();
             Storage::disk('local')->delete($path);
 
-            return back()->withErrors(['file' => 'Gagal memproses GeoJSON: ' . $e->getMessage()]);
+            return back()->withErrors(['file' => 'Gagal memproses GeoJSON: '.$e->getMessage()]);
         }
 
-        return redirect()->route('kegiatan.show', $kegiatan)
-            ->with('success', "GeoJSON berhasil diupload. {$jumlah} SubSLS berhasil dimuat.");
+        $pesan = "GeoJSON berhasil diupload. {$jumlah} SubSLS berhasil dimuat.";
+        if ($sumber === 'kosong') {
+            $pesan .= ' Muatan belum diisi — lengkapi lewat menu Kelola Muatan.';
+        }
+
+        return redirect()->route('kegiatan.show', $kegiatan)->with('success', $pesan);
     }
 
     public function destroy(Kegiatan $kegiatan, GeojsonUpload $upload)
@@ -156,7 +181,9 @@ class GeojsonUploadController extends Controller
     {
         try {
             $coords = self::flattenCoords($geometry['coordinates'], $geometry['type']);
-            if (empty($coords)) return [0.0, 0.0];
+            if (empty($coords)) {
+                return [0.0, 0.0];
+            }
 
             $count = count($coords);
 
@@ -172,10 +199,10 @@ class GeojsonUploadController extends Controller
     private static function flattenCoords(mixed $coords, string $type): array
     {
         return match ($type) {
-            'Point'                      => [$coords],
-            'MultiPoint', 'LineString'   => $coords,
+            'Point' => [$coords],
+            'MultiPoint', 'LineString' => $coords,
             'MultiLineString', 'Polygon' => array_merge(...$coords),
-            'MultiPolygon'               => array_merge(...array_map(
+            'MultiPolygon' => array_merge(...array_map(
                 fn ($poly) => array_merge(...$poly),
                 $coords
             )),

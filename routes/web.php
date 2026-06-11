@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\GeojsonUploadController;
 use App\Http\Controllers\KegiatanController;
+use App\Http\Controllers\MuatanController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,16 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.geojson.store');
     Route::delete('kegiatan/{kegiatan}/geojson/{upload}', [GeojsonUploadController::class, 'destroy'])
         ->name('kegiatan.geojson.destroy');
+
+    // Kelola Muatan per kegiatan
+    Route::get('kegiatan/{kegiatan}/muatan', [MuatanController::class, 'index'])
+        ->name('kegiatan.muatan.index');
+    Route::post('kegiatan/{kegiatan}/muatan/seragam', [MuatanController::class, 'seragam'])
+        ->name('kegiatan.muatan.seragam');
+    Route::post('kegiatan/{kegiatan}/muatan/import', [MuatanController::class, 'import'])
+        ->name('kegiatan.muatan.import');
+    Route::patch('kegiatan/{kegiatan}/muatan/manual', [MuatanController::class, 'manual'])
+        ->name('kegiatan.muatan.manual');
 });
 
 // Rute khusus admin — tambahkan di sini

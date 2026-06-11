@@ -42,9 +42,15 @@ class KegiatanController extends Controller
     {
         $kegiatan->load(['creator', 'geojsonUploads' => fn ($q) => $q->latest('uploaded_at')->limit(1)]);
 
+        $muatan = $kegiatan->wilayah()
+            ->selectRaw('COUNT(*) as total, COUNT(muatan) as terisi, COALESCE(SUM(muatan),0) as total_muatan')
+            ->first();
+
         return Inertia::render('Kegiatan/Show', [
-            'kegiatan'      => $kegiatan,
-            'jumlahWilayah' => $kegiatan->wilayah()->count(),
+            'kegiatan' => $kegiatan,
+            'jumlahWilayah' => (int) $muatan->total,
+            'muatanTerisi' => (int) $muatan->terisi,
+            'totalMuatan' => (int) $muatan->total_muatan,
         ]);
     }
 
