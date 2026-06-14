@@ -116,6 +116,9 @@ function cvLabel(cv) {
                                     </p>
                                 </div>
                                 <div class="flex items-center gap-2">
+                                    <Link v-if="s.detail_count" :href="route('kegiatan.partisi.hasil', { kegiatan: kegiatan.id, sesi: s.id })">
+                                        <SecondaryButton>Hasil / Export</SecondaryButton>
+                                    </Link>
                                     <Link :href="route('kegiatan.partisi.show', { kegiatan: kegiatan.id, sesi: s.id })">
                                         <SecondaryButton>{{ s.status === 'final' ? 'Lihat' : 'Bagi Wilayah' }}</SecondaryButton>
                                     </Link>

@@ -103,6 +103,62 @@ class SesiPartisiController extends Controller
     }
 
     /**
+     * Halaman hasil partisi (read-only) — sumber data untuk export Excel & cetak PDF.
+     */
+    public function hasil(Kegiatan $kegiatan, SesiPartisi $sesi)
+    {
+        $this->pastikanMilik($kegiatan, $sesi);
+
+        $rows = DB::table('partisi_detail as pd')
+            ->join('subsls as s', 's.id', '=', 'pd.subsls_id')
+            ->leftJoin('kegiatan_wilayah as kw', function ($j) use ($kegiatan) {
+                $j->on('kw.subsls_id', '=', 'pd.subsls_id')
+                    ->where('kw.kegiatan_id', '=', $kegiatan->id);
+            })
+            ->join('kegiatan_petugas as kpp', 'kpp.id', '=', 'pd.ppl_id')
+            ->join('petugas as pp', 'pp.id', '=', 'kpp.petugas_id')
+            ->leftJoin('kegiatan_petugas as kpm', 'kpm.id', '=', 'pd.pml_id')
+            ->leftJoin('petugas as pm', 'pm.id', '=', 'kpm.petugas_id')
+            ->where('pd.sesi_partisi_id', $sesi->id)
+            ->orderBy('kpp.group_id')
+            ->orderBy('s.idsubsls')
+            ->select(
+                's.idsubsls', 's.nmkec', 's.nmdesa', 's.nmsls', 'kw.muatan',
+                'kpp.label as ppl_label', 'pp.nama as ppl_nama', 'pp.nip as ppl_nip',
+                'kpm.label as pml_label', 'pm.nama as pml_nama',
+                'kpp.group_id'
+            )
+            ->get();
+
+        // Ringkasan beban per PPL (urut group_id), termasuk PPL tanpa assignment.
+        $semuaPpl = $kegiatan->petugas()->where('peran', 'ppl')
+            ->with('petugas:id,nama,nip')
+            ->orderBy('group_id')
+            ->get(['id', 'petugas_id', 'label', 'group_id']);
+
+        $aggByLabel = $rows->groupBy('ppl_label')->map(fn ($g) => [
+            'jumlah' => $g->count(),
+            'muatan' => (int) $g->sum('muatan'),
+        ]);
+
+        $ringkasan = $semuaPpl->map(fn ($p) => [
+            'label' => $p->label,
+            'nama' => $p->petugas?->nama,
+            'pml' => optional($rows->firstWhere('ppl_label', $p->label))->pml_label,
+            'jumlah' => $aggByLabel[$p->label]['jumlah'] ?? 0,
+            'muatan' => $aggByLabel[$p->label]['muatan'] ?? 0,
+        ])->values();
+
+        return Inertia::render('Kegiatan/Partisi/Hasil', [
+            'kegiatan' => $kegiatan->only('id', 'nama', 'jenis', 'tahun', 'gelombang'),
+            'sesi' => $sesi->only('id', 'nama', 'tipe', 'cv', 'status', 'finalized_at'),
+            'rows' => $rows,
+            'ringkasan' => $ringkasan,
+            'totalMuatan' => (int) $rows->sum('muatan'),
+        ]);
+    }
+
+    /**
      * Endpoint GeoJSON SubSLS sebuah kegiatan (di-fetch async oleh peta).
      */
     public function geojson(Kegiatan $kegiatan)

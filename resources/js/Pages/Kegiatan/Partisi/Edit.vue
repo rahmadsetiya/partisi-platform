@@ -251,6 +251,9 @@ function reopen() {
                             </template>
                             <template v-else>
                                 <p class="text-sm text-green-700 text-center">Sesi sudah final.</p>
+                                <Link :href="route('kegiatan.partisi.hasil', { kegiatan: kegiatan.id, sesi: sesi.id })" class="block">
+                                    <PrimaryButton class="w-full justify-center">Lihat Hasil / Export</PrimaryButton>
+                                </Link>
                                 <SecondaryButton class="w-full justify-center" @click="reopen">Kembalikan ke Draft</SecondaryButton>
                             </template>
                         </div>
