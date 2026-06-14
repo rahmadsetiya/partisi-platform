@@ -51,6 +51,13 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Petugas
                                 </NavLink>
+                                <NavLink
+                                    v-if="$page.props.auth.user.role === 'admin'"
+                                    :href="route('admin.users.index')"
+                                    :active="route().current('admin.users.*')"
+                                >
+                                    Pengguna
+                                </NavLink>
                             </div>
                         </div>
 
@@ -169,6 +176,13 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('petugas.*')"
                         >
                             Petugas
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="$page.props.auth.user.role === 'admin'"
+                            :href="route('admin.users.index')"
+                            :active="route().current('admin.users.*')"
+                        >
+                            Pengguna
                         </ResponsiveNavLink>
                     </div>
 

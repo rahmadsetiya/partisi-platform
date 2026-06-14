@@ -8,6 +8,7 @@ use App\Http\Controllers\KoneksiController;
 use App\Http\Controllers\MuatanController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\SesiPartisiController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -94,9 +95,12 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.koneksi.destroy');
 });
 
-// Rute khusus admin — tambahkan di sini
+// Rute khusus admin
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    // Route::get('/users', ...) — contoh
+    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::post('users', [UserController::class, 'store'])->name('users.store');
+    Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 });
 
 require __DIR__.'/auth.php';
