@@ -69,6 +69,8 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.partisi.index');
     Route::post('kegiatan/{kegiatan}/partisi', [SesiPartisiController::class, 'store'])
         ->name('kegiatan.partisi.store');
+    Route::post('kegiatan/{kegiatan}/partisi/auto', [SesiPartisiController::class, 'storeAuto'])
+        ->name('kegiatan.partisi.storeAuto');
     Route::get('kegiatan/{kegiatan}/partisi/{sesi}', [SesiPartisiController::class, 'show'])
         ->name('kegiatan.partisi.show');
     Route::get('kegiatan/{kegiatan}/partisi/{sesi}/hasil', [SesiPartisiController::class, 'hasil'])

@@ -26,6 +26,14 @@ function buatSesi() {
     });
 }
 
+const autoForm = useForm({ nama: '', prioritas_desa: false });
+
+function buatSesiAuto() {
+    autoForm.post(route('kegiatan.partisi.storeAuto', props.kegiatan.id), {
+        onSuccess: () => autoForm.reset('nama'),
+    });
+}
+
 function hapusSesi(sesi) {
     if (confirm(`Hapus sesi "${sesi.nama}"? Semua assignment di sesi ini akan ikut terhapus.`)) {
         router.delete(route('kegiatan.partisi.destroy', { kegiatan: props.kegiatan.id, sesi: sesi.id }), {
@@ -77,20 +85,49 @@ function cvLabel(cv) {
                 </div>
 
                 <!-- Buat sesi -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                    <div class="p-6">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-1">Buat Sesi Partisi Manual</h4>
-                        <p class="text-sm text-gray-500 mb-4">
-                            {{ jumlahWilayah.toLocaleString('id-ID') }} SubSLS · {{ jumlahPpl }} PPL · {{ jumlahPml }} PML
-                            <span v-if="jumlahWilayah && !muatanLengkap" class="text-amber-600"> · muatan belum lengkap (CV bisa kurang akurat)</span>
-                        </p>
-                        <div class="flex items-center gap-2">
-                            <input v-model="buatForm.nama" type="text" placeholder="Nama sesi (opsional)"
-                                class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" />
-                            <PrimaryButton :disabled="!bisaBuat || buatForm.processing" @click="buatSesi">+ Buat Sesi</PrimaryButton>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Auto -->
+                    <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg border-l-4 border-indigo-400">
+                        <div class="p-6">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-1">⚡ Partisi Auto</h4>
+                            <p class="text-sm text-gray-500 mb-4">
+                                Bagi otomatis ke {{ jumlahPpl }} PPL — beban seimbang & wilayah berdekatan.
+                                Hasil bisa dipoles manual setelahnya.
+                            </p>
+                            <div class="space-y-2">
+                                <input v-model="autoForm.nama" type="text" placeholder="Nama sesi (opsional)"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" />
+                                <label class="flex items-center gap-2 text-sm text-gray-600">
+                                    <input v-model="autoForm.prioritas_desa" type="checkbox"
+                                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                    Prioritaskan 1 desa per PPL
+                                </label>
+                                <PrimaryButton class="w-full justify-center" :disabled="!bisaBuat || autoForm.processing" @click="buatSesiAuto">
+                                    {{ autoForm.processing ? 'Memproses…' : '⚡ Jalankan Partisi Auto' }}
+                                </PrimaryButton>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual -->
+                    <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                        <div class="p-6">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-1">✋ Partisi Manual</h4>
+                            <p class="text-sm text-gray-500 mb-4">
+                                Bagi sendiri lewat peta — klik polygon untuk assign ke PPL.
+                            </p>
+                            <div class="space-y-2">
+                                <input v-model="buatForm.nama" type="text" placeholder="Nama sesi (opsional)"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" />
+                                <SecondaryButton class="w-full justify-center" :disabled="!bisaBuat || buatForm.processing" @click="buatSesi">+ Buat Sesi Manual</SecondaryButton>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <p class="text-xs text-gray-500 -mt-2 px-1">
+                    {{ jumlahWilayah.toLocaleString('id-ID') }} SubSLS · {{ jumlahPpl }} PPL · {{ jumlahPml }} PML
+                    <span v-if="jumlahWilayah && !muatanLengkap" class="text-amber-600"> · muatan belum lengkap (CV bisa kurang akurat)</span>
+                </p>
 
                 <!-- Daftar sesi -->
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
