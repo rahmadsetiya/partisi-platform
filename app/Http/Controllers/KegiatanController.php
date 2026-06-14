@@ -74,6 +74,7 @@ class KegiatanController extends Controller
             'petugasTersedia' => $petugasTersedia,
             'jumlahSesi' => (int) $kegiatan->sesiPartisi()->count(),
             'sesiFinal' => $sesiFinal,
+            'jumlahOverride' => (int) $kegiatan->overrides()->count(),
         ]);
     }
 

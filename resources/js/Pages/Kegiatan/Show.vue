@@ -15,6 +15,7 @@ const props = defineProps({
     petugasTersedia: Array,
     jumlahSesi: Number,
     sesiFinal: Object,
+    jumlahOverride: Number,
 });
 
 const flash = computed(() => usePage().props.flash);
@@ -279,9 +280,14 @@ function formatTanggal(str) {
                                 <span v-else class="text-gray-400">Belum ada pembagian wilayah.</span>
                             </p>
                         </div>
-                        <Link :href="route('kegiatan.partisi.index', kegiatan.id)">
-                            <SecondaryButton>{{ jumlahSesi ? 'Kelola Partisi' : 'Mulai Partisi' }}</SecondaryButton>
-                        </Link>
+                        <div class="flex items-center gap-2">
+                            <Link v-if="jumlahWilayah" :href="route('kegiatan.koneksi.index', kegiatan.id)">
+                                <SecondaryButton>Edit Koneksi{{ jumlahOverride ? ` (${jumlahOverride})` : '' }}</SecondaryButton>
+                            </Link>
+                            <Link :href="route('kegiatan.partisi.index', kegiatan.id)">
+                                <SecondaryButton>{{ jumlahSesi ? 'Kelola Partisi' : 'Mulai Partisi' }}</SecondaryButton>
+                            </Link>
+                        </div>
                     </div>
                 </div>
 

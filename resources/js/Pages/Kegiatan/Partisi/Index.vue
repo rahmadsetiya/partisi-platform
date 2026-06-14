@@ -89,7 +89,10 @@ function cvLabel(cv) {
                     <!-- Auto -->
                     <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg border-l-4 border-indigo-400">
                         <div class="p-6">
-                            <h4 class="text-sm font-semibold text-gray-700 mb-1">⚡ Partisi Auto</h4>
+                            <div class="flex items-center justify-between mb-1">
+                                <h4 class="text-sm font-semibold text-gray-700">⚡ Partisi Auto</h4>
+                                <Link :href="route('kegiatan.koneksi.index', kegiatan.id)" class="text-xs text-indigo-600 hover:text-indigo-800">Edit Koneksi →</Link>
+                            </div>
                             <p class="text-sm text-gray-500 mb-4">
                                 Bagi otomatis ke {{ jumlahPpl }} PPL — beban seimbang & wilayah berdekatan.
                                 Hasil bisa dipoles manual setelahnya.

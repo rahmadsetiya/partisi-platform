@@ -10,6 +10,8 @@ const props = defineProps({
     colorMap: { type: Object, default: () => ({}) },
     // Jika true, klik polygon meng-emit 'select'.
     selectable: { type: Boolean, default: false },
+    // Garis tambahan: [{ from:[lat,lon], to:[lat,lon], color?, dashed?, weight?, key? }]
+    lines: { type: Array, default: () => [] },
     height: { type: String, default: '600px' },
 });
 
@@ -17,6 +19,7 @@ const emit = defineEmits(['select', 'loaded']);
 
 const el = ref(null);
 let map = null;
+let lineLayer = null; // L.layerGroup untuk garis koneksi
 const layerById = new Map(); // subsls_id -> L.Layer
 let loadedFeatures = [];
 
@@ -35,6 +38,24 @@ function styleFor(id) {
 
 function restyle() {
     layerById.forEach((layer, id) => layer.setStyle(styleFor(id)));
+}
+
+function drawLines() {
+    if (!map) return;
+    if (!lineLayer) {
+        lineLayer = L.layerGroup().addTo(map);
+    }
+    lineLayer.clearLayers();
+    for (const ln of props.lines) {
+        if (!ln.from || !ln.to) continue;
+        L.polyline([ln.from, ln.to], {
+            color: ln.color || '#9ca3af',
+            weight: ln.weight || 1,
+            opacity: ln.opacity ?? 0.7,
+            dashArray: ln.dashed ? '6 6' : undefined,
+            interactive: false,
+        }).addTo(lineLayer);
+    }
 }
 
 async function muatGeojson() {
@@ -72,6 +93,8 @@ async function muatGeojson() {
         count: loadedFeatures.length,
         features: loadedFeatures,
     });
+
+    drawLines();
 }
 
 onMounted(async () => {
@@ -93,6 +116,7 @@ onBeforeUnmount(() => {
 });
 
 watch(() => props.colorMap, restyle, { deep: true });
+watch(() => props.lines, drawLines, { deep: true });
 </script>
 
 <template>

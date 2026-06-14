@@ -3,6 +3,7 @@
 use App\Http\Controllers\GeojsonUploadController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\KegiatanPetugasController;
+use App\Http\Controllers\KoneksiController;
 use App\Http\Controllers\MuatanController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\ProfileController;
@@ -83,6 +84,14 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.partisi.reopen');
     Route::delete('kegiatan/{kegiatan}/partisi/{sesi}', [SesiPartisiController::class, 'destroy'])
         ->name('kegiatan.partisi.destroy');
+
+    // Edit Koneksi (override adjacency antar SubSLS) — per kegiatan
+    Route::get('kegiatan/{kegiatan}/koneksi', [KoneksiController::class, 'index'])
+        ->name('kegiatan.koneksi.index');
+    Route::post('kegiatan/{kegiatan}/koneksi', [KoneksiController::class, 'store'])
+        ->name('kegiatan.koneksi.store');
+    Route::delete('kegiatan/{kegiatan}/koneksi/{override}', [KoneksiController::class, 'destroy'])
+        ->name('kegiatan.koneksi.destroy');
 });
 
 // Rute khusus admin — tambahkan di sini
