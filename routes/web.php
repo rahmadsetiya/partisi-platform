@@ -6,6 +6,7 @@ use App\Http\Controllers\KegiatanPetugasController;
 use App\Http\Controllers\MuatanController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SesiPartisiController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -60,6 +61,24 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.petugas.store');
     Route::delete('kegiatan/{kegiatan}/petugas/{kegiatanPetugas}', [KegiatanPetugasController::class, 'destroy'])
         ->name('kegiatan.petugas.destroy');
+
+    // Sesi Partisi (pembagian wilayah ke PPL) — nested di kegiatan
+    Route::get('kegiatan/{kegiatan}/geojson-data', [SesiPartisiController::class, 'geojson'])
+        ->name('kegiatan.partisi.geojson');
+    Route::get('kegiatan/{kegiatan}/partisi', [SesiPartisiController::class, 'index'])
+        ->name('kegiatan.partisi.index');
+    Route::post('kegiatan/{kegiatan}/partisi', [SesiPartisiController::class, 'store'])
+        ->name('kegiatan.partisi.store');
+    Route::get('kegiatan/{kegiatan}/partisi/{sesi}', [SesiPartisiController::class, 'show'])
+        ->name('kegiatan.partisi.show');
+    Route::patch('kegiatan/{kegiatan}/partisi/{sesi}/assign', [SesiPartisiController::class, 'saveAssignments'])
+        ->name('kegiatan.partisi.assign');
+    Route::patch('kegiatan/{kegiatan}/partisi/{sesi}/finalize', [SesiPartisiController::class, 'finalize'])
+        ->name('kegiatan.partisi.finalize');
+    Route::patch('kegiatan/{kegiatan}/partisi/{sesi}/reopen', [SesiPartisiController::class, 'reopen'])
+        ->name('kegiatan.partisi.reopen');
+    Route::delete('kegiatan/{kegiatan}/partisi/{sesi}', [SesiPartisiController::class, 'destroy'])
+        ->name('kegiatan.partisi.destroy');
 });
 
 // Rute khusus admin — tambahkan di sini

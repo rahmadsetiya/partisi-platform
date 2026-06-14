@@ -58,6 +58,12 @@ class KegiatanController extends Controller
             ->orderBy('nama')
             ->get(['id', 'nama', 'nip']);
 
+        $sesiFinal = $kegiatan->sesiPartisi()
+            ->where('status', 'final')
+            ->withCount('detail')
+            ->latest('finalized_at')
+            ->first(['id', 'nama', 'cv', 'finalized_at']);
+
         return Inertia::render('Kegiatan/Show', [
             'kegiatan' => $kegiatan,
             'jumlahWilayah' => (int) $muatan->total,
@@ -66,6 +72,8 @@ class KegiatanController extends Controller
             'petugasPpl' => $petugas->where('peran', 'ppl')->values(),
             'petugasPml' => $petugas->where('peran', 'pml')->values(),
             'petugasTersedia' => $petugasTersedia,
+            'jumlahSesi' => (int) $kegiatan->sesiPartisi()->count(),
+            'sesiFinal' => $sesiFinal,
         ]);
     }
 

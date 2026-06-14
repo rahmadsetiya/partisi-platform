@@ -13,6 +13,8 @@ const props = defineProps({
     petugasPpl: Array,
     petugasPml: Array,
     petugasTersedia: Array,
+    jumlahSesi: Number,
+    sesiFinal: Object,
 });
 
 const flash = computed(() => usePage().props.flash);
@@ -256,6 +258,30 @@ function formatTanggal(str) {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Sesi Partisi -->
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <div class="p-6 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-700">Sesi Partisi</h4>
+                            <p class="mt-1 text-sm text-gray-500">
+                                <template v-if="sesiFinal">
+                                    <span class="text-green-600 font-medium">Final: {{ sesiFinal.nama }}</span>
+                                    <span class="text-gray-500"> · {{ sesiFinal.detail_count.toLocaleString('id-ID') }} SubSLS dibagi</span>
+                                    <span v-if="sesiFinal.cv !== null" class="text-gray-500"> · CV {{ (sesiFinal.cv * 100).toFixed(1) }}%</span>
+                                </template>
+                                <template v-else-if="jumlahSesi">
+                                    <span class="text-amber-600 font-medium">{{ jumlahSesi }} sesi draft</span>
+                                    <span class="text-gray-400"> · belum ada yang difinalkan</span>
+                                </template>
+                                <span v-else class="text-gray-400">Belum ada pembagian wilayah.</span>
+                            </p>
+                        </div>
+                        <Link :href="route('kegiatan.partisi.index', kegiatan.id)">
+                            <SecondaryButton>{{ jumlahSesi ? 'Kelola Partisi' : 'Mulai Partisi' }}</SecondaryButton>
+                        </Link>
                     </div>
                 </div>
 
