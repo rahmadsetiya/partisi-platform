@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\JalankanPartisiAuto;
 use App\Models\Kegiatan;
 use App\Models\SesiPartisi;
-use App\Services\Partisi\AdjacencyBuilder;
-use App\Services\Partisi\BalancedPartitioner;
-use App\Services\Partisi\PmlGrouper;
+use App\Services\Partisi\PartisiRunner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -22,7 +21,7 @@ class SesiPartisiController extends Controller
             ->with('creator:id,name')
             ->withCount('detail')
             ->orderByDesc('created_at')
-            ->get(['id', 'kegiatan_id', 'nama', 'tipe', 'n_ppl', 'n_pml', 'cv', 'status', 'created_by', 'finalized_at', 'created_at']);
+            ->get(['id', 'kegiatan_id', 'nama', 'tipe', 'n_ppl', 'n_pml', 'cv', 'status', 'job_status', 'job_error', 'created_by', 'finalized_at', 'created_at']);
 
         $ringkasan = $this->ringkasanWilayah($kegiatan);
 
@@ -70,148 +69,75 @@ class SesiPartisiController extends Controller
             ->with('success', 'Sesi partisi dibuat. Mulai bagi wilayah ke PPL.');
     }
 
-    /** Batas aman jumlah SubSLS untuk eksekusi auto sinkron (hindari timeout PHP). */
-    private const BATAS_AUTO = 600;
+    /** Batas SubSLS untuk eksekusi sinkron; di atas ini di-queue ke background. */
+    private const BATAS_SYNC = 500;
 
     /**
-     * Buat sesi auto: jalankan algoritma partisi (PHP) lalu simpan hasilnya sebagai draft.
+     * Buat sesi auto. ≤BATAS_SYNC SubSLS dijalankan sinkron; selebihnya di-queue
+     * (background via cron) dengan status dipantau lewat sesi_partisi.job_status.
      */
-    public function storeAuto(Request $request, Kegiatan $kegiatan)
+    public function storeAuto(Request $request, Kegiatan $kegiatan, PartisiRunner $runner)
     {
         $data = $request->validate([
             'nama' => ['nullable', 'string', 'max:100'],
             'prioritas_desa' => ['boolean'],
         ], [], ['nama' => 'nama sesi']);
 
-        // PPL/PML urut group_id → indeks grup algoritma dipetakan ke id ini.
-        $pplList = $kegiatan->petugas()->where('peran', 'ppl')->orderBy('group_id')->get(['id'])->pluck('id')->all();
-        $pmlList = $kegiatan->petugas()->where('peran', 'pml')->orderBy('group_id')->get(['id'])->pluck('id')->all();
-        $nPpl = count($pplList);
-        $nPml = count($pmlList);
+        $nPpl = (int) $kegiatan->petugas()->where('peran', 'ppl')->count();
+        $nPml = (int) $kegiatan->petugas()->where('peran', 'pml')->count();
 
         if ($nPpl < 1) {
             return back()->with('error', 'Tambahkan minimal satu PPL sebelum menjalankan partisi auto.');
         }
 
-        // Ambil wilayah + geometri + muatan.
-        $rows = DB::table('kegiatan_wilayah as kw')
+        $total = (int) DB::table('kegiatan_wilayah as kw')
             ->join('subsls as s', 's.id', '=', 'kw.subsls_id')
             ->where('kw.kegiatan_id', $kegiatan->id)
             ->whereNotNull('s.geometry')
-            ->select('s.id', 's.idsubsls', 's.geometry', 's.centroid_lat', 's.centroid_lon', 's.nmdesa', 'kw.muatan')
-            ->get();
+            ->count();
 
-        if ($rows->isEmpty()) {
+        if ($total < 1) {
             return back()->with('error', 'Kegiatan belum memiliki wilayah kerja (SubSLS) bergeometri.');
         }
-        if ($rows->count() > self::BATAS_AUTO) {
-            return back()->with('error', 'Jumlah SubSLS ('.$rows->count().') melebihi batas auto ('.self::BATAS_AUTO.'). Perkecil cakupan wilayah atau bagi secara manual.');
-        }
-        if ($nPpl > $rows->count()) {
+        if ($nPpl > $total) {
             return back()->with('error', 'Jumlah PPL melebihi jumlah SubSLS. Kurangi PPL.');
         }
 
-        // Siapkan input algoritma.
-        $subsls = [];
-        $loads = [];
-        $desaMap = [];
-        $idToSubslsId = [];
-        $centroid = [];
-        foreach ($rows as $r) {
-            $subsls[] = [
-                'id' => $r->id,
-                'geometry' => json_decode($r->geometry, true),
-                'centroid_lat' => $r->centroid_lat,
-                'centroid_lon' => $r->centroid_lon,
-            ];
-            $loads[$r->id] = (float) ($r->muatan ?? 1);
-            $desaMap[$r->id] = $r->nmdesa;
-            $idToSubslsId[$r->idsubsls] = $r->id;
-            $centroid[$r->id] = ['lat' => (float) $r->centroid_lat, 'lon' => (float) $r->centroid_lon];
-        }
+        $antri = $total > self::BATAS_SYNC;
 
-        // Override koneksi (force_connect/disconnect) → pasangan subsls_id.
-        $overrides = [];
-        foreach ($kegiatan->overrides()->get(['idsubsls_a', 'idsubsls_b', 'tipe']) as $ov) {
-            if (isset($idToSubslsId[$ov->idsubsls_a], $idToSubslsId[$ov->idsubsls_b])) {
-                $overrides[] = [
-                    'a' => $idToSubslsId[$ov->idsubsls_a],
-                    'b' => $idToSubslsId[$ov->idsubsls_b],
-                    'tipe' => $ov->tipe,
-                ];
-            }
-        }
-
-        $prioritasDesa = (bool) ($data['prioritas_desa'] ?? false);
-
-        // Jalankan algoritma.
-        $adjacency = (new AdjacencyBuilder)->build($subsls, $overrides);
-        $partitioner = new BalancedPartitioner(
-            loads: $loads,
-            adjacency: $adjacency,
-            nGroups: $nPpl,
-            restarts: 6,
-            desaMap: $prioritasDesa ? $desaMap : [],
-            desaPenalty: $prioritasDesa ? 500.0 : 0.0,
-        );
-        $hasil = $partitioner->run();
-        $partition = $hasil['partition']; // subsls_id => group (0-based)
-
-        // PML auto: centroid rata-rata tiap PPL → kelompokkan.
-        $pmlForGroup = [];
-        if ($nPml > 0) {
-            $pplCentroid = [];
-            $acc = [];
-            foreach ($partition as $sid => $g) {
-                $acc[$g]['lat'] = ($acc[$g]['lat'] ?? 0) + $centroid[$sid]['lat'];
-                $acc[$g]['lon'] = ($acc[$g]['lon'] ?? 0) + $centroid[$sid]['lon'];
-                $acc[$g]['n'] = ($acc[$g]['n'] ?? 0) + 1;
-            }
-            foreach ($acc as $g => $a) {
-                $pplCentroid[$g] = ['lat' => $a['lat'] / $a['n'], 'lon' => $a['lon'] / $a['n']];
-            }
-            $pmlForGroup = (new PmlGrouper)->group($pplCentroid, $nPml); // group => pmlIndex
-        }
-
-        // Simpan sesi + detail.
         $sesi = $kegiatan->sesiPartisi()->create([
             'nama' => $data['nama'] ?: 'Auto '.now()->format('d/m H:i'),
             'tipe' => 'auto',
             'n_ppl' => $nPpl,
             'n_pml' => $nPml,
             'status' => 'draft',
+            'job_status' => $antri ? 'antri' : 'proses',
             'created_by' => $request->user()->id,
             'config' => [
                 'algoritma' => 'balanced-connected-php',
                 'restarts' => 6,
-                'prioritas_desa' => $prioritasDesa,
-                'gap' => $hasil['gap'],
+                'prioritas_desa' => (bool) ($data['prioritas_desa'] ?? false),
             ],
         ]);
 
-        $now = now();
-        $detailRows = [];
-        foreach ($partition as $sid => $g) {
-            $pplId = $pplList[$g] ?? $pplList[array_key_first($pplList)];
-            $pmlId = null;
-            if ($nPml > 0 && isset($pmlForGroup[$g], $pmlList[$pmlForGroup[$g]])) {
-                $pmlId = $pmlList[$pmlForGroup[$g]];
-            }
-            $detailRows[] = [
-                'sesi_partisi_id' => $sesi->id,
-                'subsls_id' => $sid,
-                'ppl_id' => $pplId,
-                'pml_id' => $pmlId,
-                'created_at' => $now,
-            ];
+        // Area besar → proses di background.
+        if ($antri) {
+            JalankanPartisiAuto::dispatch($sesi->id);
+
+            return redirect()->route('kegiatan.partisi.index', $kegiatan->id)
+                ->with('success', "Partisi auto untuk {$total} SubSLS sedang diproses di latar belakang. Status akan diperbarui otomatis.");
         }
 
-        DB::transaction(function () use ($sesi, $detailRows, $kegiatan) {
-            foreach (array_chunk($detailRows, 500) as $chunk) {
-                DB::table('partisi_detail')->insert($chunk);
-            }
-            $sesi->update(['cv' => $this->hitungCv($sesi, $kegiatan)]);
-        });
+        // Area kecil/sedang → sinkron.
+        try {
+            $runner->run($sesi);
+            $sesi->update(['job_status' => 'selesai']);
+        } catch (\Throwable $e) {
+            $sesi->update(['job_status' => 'gagal', 'job_error' => mb_substr($e->getMessage(), 0, 500)]);
+
+            return redirect()->route('kegiatan.partisi.index', $kegiatan->id)
+                ->with('error', 'Partisi auto gagal: '.$e->getMessage());
+        }
 
         return redirect()->route('kegiatan.partisi.show', [$kegiatan->id, $sesi->id])
             ->with('success', 'Partisi auto selesai (CV '.number_format((float) $sesi->fresh()->cv * 100, 1).'%). Tinjau & poles bila perlu.');

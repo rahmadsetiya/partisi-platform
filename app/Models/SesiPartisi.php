@@ -13,6 +13,7 @@ class SesiPartisi extends Model
     protected $fillable = [
         'kegiatan_id', 'nama', 'tipe', 'n_ppl', 'n_pml',
         'cv', 'epsg', 'config', 'status', 'created_by', 'finalized_at',
+        'job_status', 'job_error',
     ];
 
     protected $casts = [

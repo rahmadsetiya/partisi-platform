@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
     kegiatan: Object,
@@ -56,6 +56,26 @@ function cvLabel(cv) {
     if (cv === null || cv === undefined) return '—';
     return (cv * 100).toFixed(1) + '%';
 }
+
+// ---------- Status job (queue) ----------
+function sedangProses(s) {
+    return s.job_status === 'antri' || s.job_status === 'proses';
+}
+
+const adaProses = computed(() => props.sesiList.some(sedangProses));
+
+// Auto-refresh selama ada sesi yang sedang diproses di background.
+let pollTimer = null;
+onMounted(() => {
+    pollTimer = setInterval(() => {
+        if (adaProses.value) {
+            router.reload({ only: ['sesiList'], preserveScroll: true });
+        }
+    }, 3000);
+});
+onUnmounted(() => {
+    if (pollTimer) clearInterval(pollTimer);
+});
 </script>
 
 <template>
@@ -144,24 +164,37 @@ function cvLabel(cv) {
                                 <div>
                                     <div class="flex items-center gap-2">
                                         <span class="font-medium text-gray-800">{{ s.nama }}</span>
-                                        <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', statusStyle[s.status]]">
+                                        <span v-if="!sedangProses(s) && s.job_status !== 'gagal'"
+                                            :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', statusStyle[s.status]]">
                                             {{ s.status === 'final' ? 'Final' : 'Draft' }}
                                         </span>
+                                        <span v-if="s.job_status === 'antri'" class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600">⏳ Antri</span>
+                                        <span v-else-if="s.job_status === 'proses'" class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">⚙️ Diproses…</span>
+                                        <span v-else-if="s.job_status === 'gagal'" class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">Gagal</span>
                                         <span class="text-xs text-gray-400 uppercase">{{ s.tipe }}</span>
                                     </div>
                                     <p class="mt-1 text-xs text-gray-500">
-                                        {{ s.detail_count }} SubSLS dibagi · CV {{ cvLabel(s.cv) }}
-                                        · dibuat {{ formatTanggal(s.created_at) }}
-                                        <span v-if="s.creator"> oleh {{ s.creator.name }}</span>
+                                        <template v-if="sedangProses(s)">Sedang diproses di latar belakang…</template>
+                                        <template v-else>
+                                            {{ s.detail_count }} SubSLS dibagi · CV {{ cvLabel(s.cv) }}
+                                            · dibuat {{ formatTanggal(s.created_at) }}
+                                            <span v-if="s.creator"> oleh {{ s.creator.name }}</span>
+                                        </template>
                                     </p>
+                                    <p v-if="s.job_status === 'gagal' && s.job_error" class="mt-1 text-xs text-red-600">{{ s.job_error }}</p>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <Link v-if="s.detail_count" :href="route('kegiatan.partisi.hasil', { kegiatan: kegiatan.id, sesi: s.id })">
-                                        <SecondaryButton>Hasil / Export</SecondaryButton>
-                                    </Link>
-                                    <Link :href="route('kegiatan.partisi.show', { kegiatan: kegiatan.id, sesi: s.id })">
-                                        <SecondaryButton>{{ s.status === 'final' ? 'Lihat' : 'Bagi Wilayah' }}</SecondaryButton>
-                                    </Link>
+                                    <template v-if="sedangProses(s)">
+                                        <span class="text-xs text-gray-400">menunggu…</span>
+                                    </template>
+                                    <template v-else>
+                                        <Link v-if="s.detail_count" :href="route('kegiatan.partisi.hasil', { kegiatan: kegiatan.id, sesi: s.id })">
+                                            <SecondaryButton>Hasil / Export</SecondaryButton>
+                                        </Link>
+                                        <Link v-if="s.job_status !== 'gagal'" :href="route('kegiatan.partisi.show', { kegiatan: kegiatan.id, sesi: s.id })">
+                                            <SecondaryButton>{{ s.status === 'final' ? 'Lihat' : 'Bagi Wilayah' }}</SecondaryButton>
+                                        </Link>
+                                    </template>
                                     <button @click="hapusSesi(s)" class="text-red-500 hover:text-red-700 text-xs">Hapus</button>
                                 </div>
                             </li>
