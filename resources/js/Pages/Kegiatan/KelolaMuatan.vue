@@ -13,8 +13,23 @@ const props = defineProps({
     kegiatan: Object,
     rows: Object,    // paginator: { data, links, meta }
     filters: Object, // { q }
-    summary: Object, // { total, terisi, total_muatan }
+    summary: Object, // { total, terisi, total_muatan, tanpa_geometri }
+    terkunci: Boolean,
 });
+
+function hapusRow(row) {
+    if (confirm(`Hapus SubSLS ${row.idsubsls} (${row.nmsls}) dari wilayah kerja?`)) {
+        router.delete(route('kegiatan.muatan.hapusSubsls', { kegiatan: props.kegiatan.id, subsls: row.subsls_id }), {
+            preserveScroll: true,
+        });
+    }
+}
+
+function kosongkanWilayah() {
+    if (confirm('Kosongkan SELURUH wilayah kerja kegiatan ini? Semua SubSLS & muatan akan dihapus.')) {
+        router.delete(route('kegiatan.muatan.kosongkan', props.kegiatan.id));
+    }
+}
 
 const tab = ref('seragam'); // seragam | import | manual
 
@@ -170,6 +185,10 @@ function gotoPage(url) {
                     </div>
                 </div>
 
+                <div v-if="summary.tanpa_geometri" class="rounded-md bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800">
+                    ⚠ {{ summary.tanpa_geometri.toLocaleString('id-ID') }} SubSLS tanpa geometry — tidak akan tampil di peta / ikut partisi. Pertimbangkan upload ulang GeoJSON atau hapus.
+                </div>
+
                 <!-- Tab -->
                 <div class="flex gap-1 border-b border-gray-200">
                     <button v-for="t in [['seragam','Seragam'],['import','Import Excel/CSV'],['manual','Edit Manual']]"
@@ -241,9 +260,13 @@ function gotoPage(url) {
                                 class="w-72 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" />
                             <SecondaryButton type="submit">Cari</SecondaryButton>
                         </form>
-                        <PrimaryButton :disabled="!jumlahEdit || manualForm.processing" @click="simpanManual">
-                            Simpan perubahan<span v-if="jumlahEdit"> ({{ jumlahEdit }})</span>
-                        </PrimaryButton>
+                        <div class="flex items-center gap-2">
+                            <button v-if="!terkunci && summary.total" @click="kosongkanWilayah"
+                                class="rounded-md border border-red-200 text-red-600 hover:bg-red-50 px-3 py-2 text-sm">Kosongkan Wilayah</button>
+                            <PrimaryButton :disabled="!jumlahEdit || manualForm.processing" @click="simpanManual">
+                                Simpan perubahan<span v-if="jumlahEdit"> ({{ jumlahEdit }})</span>
+                            </PrimaryButton>
+                        </div>
                     </div>
 
                     <div class="overflow-x-auto border border-gray-200 rounded-md">
@@ -255,6 +278,7 @@ function gotoPage(url) {
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Desa</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">SLS</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600 w-32">Muatan</th>
+                                    <th v-if="!terkunci" class="px-3 py-2 text-right font-medium text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -270,9 +294,12 @@ function gotoPage(url) {
                                             @input="setEdit(row.subsls_id, $event.target.value)"
                                             class="w-24 rounded border-gray-300 shadow-sm text-sm py-1" />
                                     </td>
+                                    <td v-if="!terkunci" class="px-3 py-1.5 text-right">
+                                        <button @click="hapusRow(row)" class="text-red-500 hover:text-red-700 text-xs">Hapus</button>
+                                    </td>
                                 </tr>
                                 <tr v-if="!rows.data.length">
-                                    <td colspan="5" class="px-3 py-6 text-center text-gray-400">Tidak ada data.</td>
+                                    <td :colspan="terkunci ? 5 : 6" class="px-3 py-6 text-center text-gray-400">Tidak ada data.</td>
                                 </tr>
                             </tbody>
                         </table>

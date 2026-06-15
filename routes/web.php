@@ -59,6 +59,10 @@ Route::middleware('auth')->group(function () {
             ->name('kegiatan.muatan.import');
         Route::patch('kegiatan/{kegiatan}/muatan/manual', [MuatanController::class, 'manual'])
             ->name('kegiatan.muatan.manual');
+        Route::delete('kegiatan/{kegiatan}/muatan/kosongkan', [MuatanController::class, 'kosongkan'])
+            ->name('kegiatan.muatan.kosongkan');
+        Route::delete('kegiatan/{kegiatan}/muatan/{subsls}', [MuatanController::class, 'hapusSubsls'])
+            ->name('kegiatan.muatan.hapusSubsls');
 
         // Assign petugas ke kegiatan (PPL/PML)
         Route::post('kegiatan/{kegiatan}/petugas', [KegiatanPetugasController::class, 'store'])

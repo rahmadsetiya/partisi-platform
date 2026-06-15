@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Kegiatan;
+use App\Models\Subsls;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -36,7 +37,48 @@ class MuatanController extends Controller
             'rows' => $rows,
             'filters' => ['q' => $q],
             'summary' => $this->summary($kegiatan),
+            'terkunci' => $kegiatan->adaPartisiFinal(),
         ]);
+    }
+
+    /**
+     * Hapus satu SubSLS dari wilayah kerja kegiatan (+ assignment terkaitnya).
+     */
+    public function hapusSubsls(Kegiatan $kegiatan, Subsls $subsls)
+    {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu.');
+        }
+
+        DB::transaction(function () use ($kegiatan, $subsls) {
+            // Hapus assignment di sesi (draft) kegiatan ini untuk subsls tsb.
+            DB::table('partisi_detail')
+                ->whereIn('sesi_partisi_id', $kegiatan->sesiPartisi()->pluck('id'))
+                ->where('subsls_id', $subsls->id)
+                ->delete();
+            $kegiatan->wilayah()->where('subsls_id', $subsls->id)->delete();
+        });
+
+        return back()->with('success', 'SubSLS dihapus dari wilayah kerja.');
+    }
+
+    /**
+     * Kosongkan seluruh wilayah kerja kegiatan.
+     */
+    public function kosongkan(Kegiatan $kegiatan)
+    {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu.');
+        }
+
+        DB::transaction(function () use ($kegiatan) {
+            DB::table('partisi_detail')
+                ->whereIn('sesi_partisi_id', $kegiatan->sesiPartisi()->pluck('id'))
+                ->delete();
+            $kegiatan->wilayah()->delete();
+        });
+
+        return back()->with('success', 'Seluruh wilayah kerja dikosongkan.');
     }
 
     public function seragam(Request $request, Kegiatan $kegiatan)
@@ -144,10 +186,17 @@ class MuatanController extends Controller
             ->selectRaw('COUNT(*) as total, COUNT(muatan) as terisi, COALESCE(SUM(muatan),0) as total_muatan')
             ->first();
 
+        $tanpaGeometri = (int) DB::table('kegiatan_wilayah as kw')
+            ->join('subsls as s', 's.id', '=', 'kw.subsls_id')
+            ->where('kw.kegiatan_id', $kegiatan->id)
+            ->whereNull('s.geometry')
+            ->count();
+
         return [
             'total' => (int) $agg->total,
             'terisi' => (int) $agg->terisi,
             'total_muatan' => (int) $agg->total_muatan,
+            'tanpa_geometri' => $tanpaGeometri,
         ];
     }
 }
