@@ -167,6 +167,7 @@ class PetugasController extends Controller
         $data = $request->validate([
             'rows' => ['required', 'array', 'min:1'],
             'rows.*.nama' => ['required', 'string', 'max:100'],
+            'rows.*.jenis' => ['nullable', 'in:organik,mitra'],
             'rows.*.nip' => ['nullable', 'string', 'max:30'],
             'rows.*.telepon' => ['nullable', 'string', 'max:20'],
             'rows.*.satker' => ['nullable', 'string', 'max:100'],
@@ -193,6 +194,7 @@ class PetugasController extends Controller
 
             $insert[] = [
                 'nama' => $row['nama'],
+                'jenis' => ($row['jenis'] ?? null) === 'organik' ? 'organik' : 'mitra',
                 'nip' => $nip ?: null,
                 'telepon' => $row['telepon'] ?? null,
                 'satker' => $request->user()->role !== 'admin' ? $request->user()->satker : ($row['satker'] ?? null),

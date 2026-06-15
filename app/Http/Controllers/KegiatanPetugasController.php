@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Kegiatan;
 use App\Models\KegiatanPetugas;
+use App\Models\Petugas;
 use Illuminate\Http\Request;
 
 class KegiatanPetugasController extends Controller
@@ -18,6 +19,14 @@ class KegiatanPetugasController extends Controller
             'petugas_id' => ['required', 'integer', 'exists:petugas,id'],
             'peran' => ['required', 'in:ppl,pml'],
         ]);
+
+        // Organik BPS tidak boleh jadi PPL (hanya mitra).
+        if ($data['peran'] === 'ppl') {
+            $jenis = Petugas::whereKey($data['petugas_id'])->value('jenis');
+            if ($jenis !== 'mitra') {
+                return back()->with('error', 'Organik BPS tidak bisa ditugaskan sebagai PPL. Hanya mitra yang boleh jadi PPL.');
+            }
+        }
 
         // Satu petugas hanya boleh punya satu peran dalam satu kegiatan
         $sudahAda = KegiatanPetugas::where('kegiatan_id', $kegiatan->id)

@@ -64,7 +64,7 @@ class KegiatanController extends Controller
         $petugasTersedia = Petugas::whereNotIn('id', $assigned)
             ->when($user->role !== 'admin', fn ($q) => $q->where('satker', $user->satker))
             ->orderBy('nama')
-            ->get(['id', 'nama', 'nip']);
+            ->get(['id', 'nama', 'nip', 'jenis']);
 
         $sesiFinal = $kegiatan->sesiPartisi()
             ->where('status', 'final')

@@ -19,9 +19,11 @@ class KegiatanSeeder extends Seeder
 
     public function run(): void
     {
-        $adminId    = DB::table('users')->where('email', 'admin@test.com')->value('id');
-        $petugasIds = DB::table('petugas')->orderBy('id')->pluck('id')->all();
-        $now        = now()->toDateTimeString();
+        $adminId = DB::table('users')->where('email', 'admin@test.com')->value('id');
+        // PPL hanya dari mitra; PML dari organik (pegawai BPS).
+        $mitraIds = DB::table('petugas')->where('jenis', 'mitra')->orderBy('id')->pluck('id')->all();
+        $organikIds = DB::table('petugas')->where('jenis', 'organik')->orderBy('id')->pluck('id')->all();
+        $now = now()->toDateTimeString();
 
         // kdkec, nmkec, baseLon, baseLat per kegiatan agar idsubsls & area tidak bentrok
         $configs = [
@@ -75,20 +77,21 @@ class KegiatanSeeder extends Seeder
             ],
         ];
 
-        $offset = 0; // rotasi petugas antar kegiatan
+        $offPpl = 0; // rotasi mitra (PPL) antar kegiatan
+        $offPml = 0; // rotasi organik (PML) antar kegiatan
         foreach ($configs as $c) {
             $kegiatanId = DB::table('kegiatan')->insertGetId([
-                'nama'            => $c['nama'],
-                'jenis'           => $c['jenis'],
-                'tahun'           => $c['tahun'],
-                'gelombang'       => $c['gelombang'],
-                'tanggal_mulai'   => $c['mulai'],
+                'nama' => $c['nama'],
+                'jenis' => $c['jenis'],
+                'tahun' => $c['tahun'],
+                'gelombang' => $c['gelombang'],
+                'tanggal_mulai' => $c['mulai'],
                 'tanggal_selesai' => $c['selesai'],
-                'deskripsi'       => $c['deskripsi'],
-                'status'          => $c['status'],
-                'created_by'      => $adminId,
-                'created_at'      => $now,
-                'updated_at'      => $now,
+                'deskripsi' => $c['deskripsi'],
+                'status' => $c['status'],
+                'created_by' => $adminId,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
 
             if ($c['jumlah'] > 0) {
@@ -97,74 +100,75 @@ class KegiatanSeeder extends Seeder
             }
 
             if ($c['ppl'] > 0 || $c['pml'] > 0) {
-                $this->assignPetugas($kegiatanId, $petugasIds, $c['ppl'], $c['pml'], $offset);
-                $offset += $c['ppl'] + $c['pml'];
+                $this->assignPetugas($kegiatanId, $mitraIds, $organikIds, $c['ppl'], $c['pml'], $offPpl, $offPml);
+                $offPpl += $c['ppl'];
+                $offPml += $c['pml'];
             }
         }
     }
 
     private function generateWilayah(int $kegiatanId, array $c, string $now): void
     {
-        $jumlah  = $c['jumlah'];
-        $cols    = 12;
-        $cell    = 0.0025; // ~275 m
+        $jumlah = $c['jumlah'];
+        $cols = 12;
+        $cell = 0.0025; // ~275 m
         $numDesa = max(1, min(6, (int) ceil($jumlah / 30)));
         $perDesa = (int) ceil($jumlah / $numDesa);
 
         $muatanCol = match ($c['muatan']) {
-            'kolom'   => 'Perkiraan_Jumlah_Muatan',
+            'kolom' => 'Perkiraan_Jumlah_Muatan',
             'seragam' => '(seragam)',
-            'kosong'  => null,
+            'kosong' => null,
         };
 
-        $subslsRows  = [];
+        $subslsRows = [];
         $wilayahMeta = []; // idsubsls => muatan
 
         for ($i = 0; $i < $jumlah; $i++) {
             $desaIdx = intdiv($i, $perDesa);
-            $within  = $i % $perDesa;
-            $slsIdx  = intdiv($within, 4);
-            $subIdx  = $within % 4;
+            $within = $i % $perDesa;
+            $slsIdx = intdiv($within, 4);
+            $subIdx = $within % 4;
 
-            $kddesa   = sprintf('%03d', $desaIdx + 1);
-            $kdsls    = sprintf('%04d', $slsIdx + 1);
+            $kddesa = sprintf('%03d', $desaIdx + 1);
+            $kdsls = sprintf('%04d', $slsIdx + 1);
             $kdsubsls = sprintf('%02d', $subIdx + 1);
             $idsubsls = '7316'.$c['kdkec'].$kddesa.$kdsls.$kdsubsls;
 
-            $col  = $i % $cols;
-            $row  = intdiv($i, $cols);
+            $col = $i % $cols;
+            $row = intdiv($i, $cols);
             $lon0 = $c['lon'] + $col * $cell;
             $lat0 = $c['lat'] + $row * $cell;
             $lon1 = $lon0 + $cell;
             $lat1 = $lat0 + $cell;
 
             $geometry = [
-                'type'        => 'Polygon',
+                'type' => 'Polygon',
                 'coordinates' => [[
                     [$lon0, $lat0], [$lon1, $lat0], [$lon1, $lat1], [$lon0, $lat1], [$lon0, $lat0],
                 ]],
             ];
 
             $subslsRows[] = [
-                'idsubsls'     => $idsubsls,
-                'kdsubsls'     => $kdsubsls,
-                'kdprov'       => '73', 'nmprov' => 'SULAWESI SELATAN',
-                'kdkab'        => '16', 'nmkab' => 'ENREKANG',
-                'kdkec'        => $c['kdkec'], 'nmkec' => $c['nmkec'],
-                'kddesa'       => $kddesa, 'nmdesa' => $this->desaNames[$desaIdx % count($this->desaNames)],
-                'kdsls'        => $kdsls, 'nmsls' => 'DUSUN '.$this->slsNames[$slsIdx % count($this->slsNames)],
-                'idsls'        => '7316'.$c['kdkec'].$kddesa.$kdsls,
-                'geometry'     => json_encode($geometry),
+                'idsubsls' => $idsubsls,
+                'kdsubsls' => $kdsubsls,
+                'kdprov' => '73', 'nmprov' => 'SULAWESI SELATAN',
+                'kdkab' => '16', 'nmkab' => 'ENREKANG',
+                'kdkec' => $c['kdkec'], 'nmkec' => $c['nmkec'],
+                'kddesa' => $kddesa, 'nmdesa' => $this->desaNames[$desaIdx % count($this->desaNames)],
+                'kdsls' => $kdsls, 'nmsls' => 'DUSUN '.$this->slsNames[$slsIdx % count($this->slsNames)],
+                'idsls' => '7316'.$c['kdkec'].$kddesa.$kdsls,
+                'geometry' => json_encode($geometry),
                 'centroid_lat' => $lat0 + $cell / 2,
                 'centroid_lon' => $lon0 + $cell / 2,
-                'created_at'   => $now,
-                'updated_at'   => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
 
             $wilayahMeta[$idsubsls] = match ($c['muatan']) {
-                'kolom'   => random_int(25, 95),
+                'kolom' => random_int(25, 95),
                 'seragam' => 1,
-                'kosong'  => null,
+                'kosong' => null,
             };
         }
 
@@ -180,10 +184,10 @@ class KegiatanSeeder extends Seeder
         foreach ($wilayahMeta as $idsubsls => $muatan) {
             $wilayahRows[] = [
                 'kegiatan_id' => $kegiatanId,
-                'subsls_id'   => $idToSubslsId[$idsubsls],
-                'muatan'      => $muatan,
-                'muatan_col'  => $muatanCol,
-                'created_at'  => $now,
+                'subsls_id' => $idToSubslsId[$idsubsls],
+                'muatan' => $muatan,
+                'muatan_col' => $muatanCol,
+                'created_at' => $now,
             ];
         }
 
@@ -197,35 +201,36 @@ class KegiatanSeeder extends Seeder
         $slug = strtolower(str_replace(' ', '_', $c['nmkec']));
 
         DB::table('geojson_uploads')->insert([
-            'kegiatan_id'  => $kegiatanId,
-            'level'        => 'subsls',
-            'nama_file'    => "wilkerstat_{$slug}.geojson",
-            'path'         => "geojson/seed_{$c['kdkec']}.geojson",
-            'muatan_col'   => $c['muatan'] === 'kolom' ? 'Perkiraan_Jumlah_Muatan' : null,
-            'epsg'         => 32750,
+            'kegiatan_id' => $kegiatanId,
+            'level' => 'subsls',
+            'nama_file' => "wilkerstat_{$slug}.geojson",
+            'path' => "geojson/seed_{$c['kdkec']}.geojson",
+            'muatan_col' => $c['muatan'] === 'kolom' ? 'Perkiraan_Jumlah_Muatan' : null,
+            'epsg' => 32750,
             'jumlah_fitur' => $c['jumlah'],
-            'uploaded_by'  => $adminId,
-            'uploaded_at'  => $now,
+            'uploaded_by' => $adminId,
+            'uploaded_at' => $now,
         ]);
     }
 
-    private function assignPetugas(int $kegiatanId, array $petugasIds, int $nPpl, int $nPml, int $offset): void
+    private function assignPetugas(int $kegiatanId, array $mitraIds, array $organikIds, int $nPpl, int $nPml, int $offPpl, int $offPml): void
     {
-        $total = count($petugasIds);
-        $now   = now()->toDateTimeString();
-        $rows  = [];
+        $now = now()->toDateTimeString();
+        $rows = [];
 
-        $ambil = function (int $jumlah, int $start) use ($petugasIds, $total) {
+        $ambil = function (array $pool, int $jumlah, int $start) {
+            $n = count($pool);
             $out = [];
-            for ($k = 0; $k < $jumlah; $k++) {
-                $out[] = $petugasIds[($start + $k) % $total];
+            for ($k = 0; $k < $jumlah && $n > 0; $k++) {
+                $out[] = $pool[($start + $k) % $n];
             }
 
             return $out;
         };
 
-        $pplIds = $ambil($nPpl, $offset);
-        $pmlIds = $ambil($nPml, $offset + $nPpl);
+        // PPL dari mitra; PML dari organik (pegawai BPS).
+        $pplIds = $ambil($mitraIds, $nPpl, $offPpl);
+        $pmlIds = $ambil($organikIds, $nPml, $offPml);
 
         foreach ($pplIds as $g => $pid) {
             $rows[] = [

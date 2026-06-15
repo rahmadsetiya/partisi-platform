@@ -30,7 +30,7 @@ function gotoPage(url) {
 // ---------- Modal Tambah/Edit ----------
 const showForm = ref(false);
 const editingId = ref(null);
-const form = useForm({ nama: '', nip: '', telepon: '', satker: '' });
+const form = useForm({ nama: '', jenis: 'mitra', nip: '', telepon: '', satker: '' });
 
 function bukaTambah() {
     editingId.value = null;
@@ -43,6 +43,7 @@ function bukaEdit(p) {
     editingId.value = p.id;
     form.clearErrors();
     form.nama = p.nama;
+    form.jenis = p.jenis ?? 'mitra';
     form.nip = p.nip ?? '';
     form.telepon = p.telepon ?? '';
     form.satker = p.satker ?? '';
@@ -95,6 +96,7 @@ function onImportFile(e) {
             const headers = Object.keys(json[0]);
             const cari = (re) => headers.find(h => re.test(h));
             const colNama = cari(/nama/i);
+            const colJenis = cari(/jenis|organik|mitra/i);
             const colNip = cari(/nip/i);
             const colTelp = cari(/telp|telepon|hp|phone/i);
             const colSatker = cari(/satker|satuan/i);
@@ -107,6 +109,7 @@ function onImportFile(e) {
             importRows.value = json
                 .map(r => ({
                     nama: r[colNama] != null ? String(r[colNama]).trim() : '',
+                    jenis: colJenis && /organik/i.test(String(r[colJenis] ?? '')) ? 'organik' : 'mitra',
                     nip: colNip && r[colNip] != null ? String(r[colNip]).trim() : null,
                     telepon: colTelp && r[colTelp] != null ? String(r[colTelp]).trim() : null,
                     satker: colSatker && r[colSatker] != null ? String(r[colSatker]).trim() : null,
@@ -156,7 +159,7 @@ function kirimImport() {
                 <!-- Panel Import -->
                 <div v-if="showImport" class="rounded-lg bg-white shadow-sm p-6 space-y-4">
                     <h3 class="text-sm font-semibold text-gray-700">Import Petugas dari Excel/CSV</h3>
-                    <p class="text-xs text-gray-500">Kolom dikenali otomatis: <code>nama</code> (wajib), <code>nip</code>, <code>telepon</code>, <code>satker</code>. NIP duplikat akan dilewati.</p>
+                    <p class="text-xs text-gray-500">Kolom dikenali otomatis: <code>nama</code> (wajib), <code>jenis</code> (organik/mitra, default mitra), <code>nip</code>, <code>telepon</code>, <code>satker</code>. NIP duplikat akan dilewati.</p>
                     <input type="file" accept=".xlsx,.xls,.csv" @change="onImportFile"
                         class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-indigo-50 file:text-indigo-700 file:text-sm file:font-medium hover:file:bg-indigo-100 cursor-pointer" />
                     <p v-if="importError" class="text-sm text-red-600">{{ importError }}</p>
@@ -182,6 +185,7 @@ function kirimImport() {
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nama</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Jenis</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">NIP</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Telepon</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Satuan Kerja</th>
@@ -194,6 +198,11 @@ function kirimImport() {
                         <tbody class="divide-y divide-gray-200 bg-white">
                             <tr v-for="p in petugas.data" :key="p.id" class="hover:bg-gray-50">
                                 <td class="px-6 py-4 font-medium text-gray-900">{{ p.nama }}</td>
+                                <td class="px-6 py-4">
+                                    <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', p.jenis === 'organik' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600']">
+                                        {{ p.jenis === 'organik' ? 'Organik' : 'Mitra' }}
+                                    </span>
+                                </td>
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ p.nip ?? '-' }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ p.telepon ?? '-' }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ p.satker ?? '-' }}</td>
@@ -235,6 +244,16 @@ function kirimImport() {
                     <InputLabel for="m_nama" value="Nama Petugas" />
                     <TextInput id="m_nama" v-model="form.nama" type="text" class="mt-1 block w-full" required />
                     <InputError :message="form.errors.nama" class="mt-1" />
+                </div>
+
+                <div>
+                    <InputLabel for="m_jenis" value="Jenis" />
+                    <select id="m_jenis" v-model="form.jenis"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        <option value="mitra">Mitra (bisa PPL/PML)</option>
+                        <option value="organik">Organik BPS (hanya PML)</option>
+                    </select>
+                    <InputError :message="form.errors.jenis" class="mt-1" />
                 </div>
 
                 <div>

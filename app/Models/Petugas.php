@@ -10,7 +10,7 @@ class Petugas extends Model
     protected $table = 'petugas';
 
     protected $fillable = [
-        'nama', 'nip', 'telepon', 'satker',
+        'nama', 'jenis', 'nip', 'telepon', 'satker',
     ];
 
     public function kegiatanPetugas(): HasMany

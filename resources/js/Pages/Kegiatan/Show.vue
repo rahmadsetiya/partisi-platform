@@ -33,6 +33,9 @@ const siapPartisi = computed(() =>
     props.jumlahWilayah > 0 && props.muatanTerisi === props.jumlahWilayah && props.petugasPpl.length > 0,
 );
 
+// PPL hanya boleh dari mitra (organik BPS tak boleh PPL); PML bebas.
+const petugasTersediaPpl = computed(() => props.petugasTersedia.filter((p) => p.jenis === 'mitra'));
+
 // ---------- Assign petugas ----------
 const tambahPpl = useForm({ petugas_id: '', peran: 'ppl' });
 const tambahPml = useForm({ petugas_id: '', peran: 'pml' });
@@ -243,8 +246,8 @@ function formatTanggal(str) {
                                 <div v-if="!terkunci" class="flex items-center gap-2">
                                     <select v-model="tambahPpl.petugas_id"
                                         class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
-                                        <option value="">-- Pilih petugas --</option>
-                                        <option v-for="p in petugasTersedia" :key="p.id" :value="p.id">
+                                        <option value="">-- Pilih petugas (mitra) --</option>
+                                        <option v-for="p in petugasTersediaPpl" :key="p.id" :value="p.id">
                                             {{ p.nama }}{{ p.nip ? ' (' + p.nip + ')' : '' }}
                                         </option>
                                     </select>
@@ -252,6 +255,7 @@ function formatTanggal(str) {
                                         + PPL
                                     </SecondaryButton>
                                 </div>
+                                <p v-if="!terkunci" class="text-[11px] text-gray-400 mt-1">PPL hanya dari mitra.</p>
                             </div>
 
                             <!-- PML -->

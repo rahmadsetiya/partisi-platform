@@ -10,7 +10,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $now      = now()->toDateTimeString();
+        $now = now()->toDateTimeString();
         $password = Hash::make('password');
 
         $users = [
@@ -23,10 +23,10 @@ class DatabaseSeeder extends Seeder
         foreach ($users as $u) {
             DB::table('users')->insert([
                 ...$u,
-                'password'          => $password,
+                'password' => $password,
                 'email_verified_at' => $now,
-                'created_at'        => $now,
-                'updated_at'        => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]);
         }
 

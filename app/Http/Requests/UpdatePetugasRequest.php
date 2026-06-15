@@ -18,6 +18,7 @@ class UpdatePetugasRequest extends FormRequest
 
         return [
             'nama' => ['required', 'string', 'max:100'],
+            'jenis' => ['required', 'in:organik,mitra'],
             'nip' => ['nullable', 'string', 'max:30', Rule::unique('petugas', 'nip')->ignore($petugasId)],
             'telepon' => ['nullable', 'string', 'max:20'],
             'satker' => ['nullable', 'string', 'max:100'],
@@ -28,6 +29,7 @@ class UpdatePetugasRequest extends FormRequest
     {
         return [
             'nama' => 'nama petugas',
+            'jenis' => 'jenis petugas',
             'nip' => 'NIP',
             'telepon' => 'nomor telepon',
             'satker' => 'satuan kerja',
