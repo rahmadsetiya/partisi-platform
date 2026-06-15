@@ -82,9 +82,6 @@ function hapus() {
         <div class="py-12">
             <div class="mx-auto max-w-5xl sm:px-6 lg:px-8 space-y-6">
 
-                <div v-if="flash.success" class="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700 border border-green-200">{{ flash.success }}</div>
-                <div v-if="flash.error" class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200">{{ flash.error }}</div>
-
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <table class="w-full text-sm">
                         <thead>

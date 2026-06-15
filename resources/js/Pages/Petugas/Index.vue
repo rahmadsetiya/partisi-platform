@@ -153,13 +153,6 @@ function kirimImport() {
         <div class="py-12">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-4">
 
-                <div v-if="flash.success" class="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700 border border-green-200">
-                    {{ flash.success }}
-                </div>
-                <div v-if="flash.error" class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200">
-                    {{ flash.error }}
-                </div>
-
                 <!-- Panel Import -->
                 <div v-if="showImport" class="rounded-lg bg-white shadow-sm p-6 space-y-4">
                     <h3 class="text-sm font-semibold text-gray-700">Import Petugas dari Excel/CSV</h3>

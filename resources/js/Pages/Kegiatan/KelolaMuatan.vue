@@ -151,12 +151,6 @@ function gotoPage(url) {
                     ← {{ kegiatan.nama }}
                 </Link>
 
-                <div v-if="flash.success" class="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-                    {{ flash.success }}
-                </div>
-                <div v-if="flash.error" class="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                    {{ flash.error }}
-                </div>
 
                 <!-- Ringkasan -->
                 <div class="grid grid-cols-3 gap-4">

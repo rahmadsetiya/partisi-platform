@@ -159,9 +159,6 @@ function hapusOverride(o) {
         <div class="py-8">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-4">
 
-                <div v-if="flash.success" class="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700 border border-green-200">{{ flash.success }}</div>
-                <div v-if="flash.error" class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200">{{ flash.error }}</div>
-
                 <div class="rounded-md bg-indigo-50 border border-indigo-200 px-4 py-2 text-sm text-indigo-800">
                     Klik 2 SubSLS di peta, lalu pilih <b>Putuskan</b> (jika sebenarnya tak terhubung di lapangan)
                     atau <b>Sambungkan</b> (jika terhubung tapi polygon tak bersinggungan). Override dipakai saat partisi auto.
