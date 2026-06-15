@@ -7,7 +7,7 @@ import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import * as XLSX from 'xlsx';
 
@@ -193,6 +193,8 @@ function kirimImport() {
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Telepon</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Satuan Kerja</th>
                                 <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Penugasan</th>
+                                <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Kegiatan Aktif</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Beban (final)</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Aksi</th>
                             </tr>
                         </thead>
@@ -203,7 +205,14 @@ function kirimImport() {
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ p.telepon ?? '-' }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-600">{{ p.satker ?? '-' }}</td>
                                 <td class="px-6 py-4 text-center text-sm text-gray-600">{{ p.kegiatan_petugas_count }}</td>
+                                <td class="px-6 py-4 text-center text-sm">
+                                    <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', p.aktif_count >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600']">
+                                        {{ p.aktif_count }}<span v-if="p.aktif_count >= 3"> · padat</span>
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-right text-sm text-gray-600">{{ (p.muatan_final ?? 0).toLocaleString('id-ID') }}</td>
                                 <td class="px-6 py-4 text-right text-sm">
+                                    <Link :href="route('petugas.show', p.id)" class="mr-3 text-gray-600 hover:text-gray-800">Riwayat</Link>
                                     <button type="button" @click="bukaEdit(p)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</button>
                                     <button type="button" @click="confirmingDelete = p" class="text-red-600 hover:text-red-800">Hapus</button>
                                 </td>

@@ -13,6 +13,11 @@ class PetugasPolicy
             || ($user->satker !== null && $user->satker === $petugas->satker);
     }
 
+    public function view(User $user, Petugas $petugas): bool
+    {
+        return $this->sesatker($user, $petugas);
+    }
+
     public function update(User $user, Petugas $petugas): bool
     {
         return $this->sesatker($user, $petugas);

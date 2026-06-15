@@ -31,9 +31,94 @@ class PetugasController extends Controller
             ->paginate(25)
             ->withQueryString();
 
+        $this->lampirkanBeban($petugas->getCollection());
+
         return Inertia::render('Petugas/Index', [
             'petugas' => $petugas,
             'filters' => ['q' => $q],
+        ]);
+    }
+
+    /**
+     * Lampirkan beban lintas kegiatan ke koleksi petugas:
+     * aktif_count (jml kegiatan aktif) & muatan_final (beban PPL dari sesi final).
+     */
+    private function lampirkanBeban($collection): void
+    {
+        $ids = $collection->pluck('id');
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        $aktif = DB::table('kegiatan_petugas as kp')
+            ->join('kegiatan as k', 'k.id', '=', 'kp.kegiatan_id')
+            ->where('k.status', 'aktif')
+            ->whereIn('kp.petugas_id', $ids)
+            ->groupBy('kp.petugas_id')
+            ->selectRaw('kp.petugas_id, COUNT(DISTINCT kp.kegiatan_id) as c')
+            ->pluck('c', 'kp.petugas_id');
+
+        $muatan = DB::table('partisi_detail as pd')
+            ->join('sesi_partisi as sp', 'sp.id', '=', 'pd.sesi_partisi_id')
+            ->where('sp.status', 'final')
+            ->join('kegiatan_petugas as kp', 'kp.id', '=', 'pd.ppl_id')
+            ->join('kegiatan_wilayah as kw', function ($j) {
+                $j->on('kw.subsls_id', '=', 'pd.subsls_id')->on('kw.kegiatan_id', '=', 'sp.kegiatan_id');
+            })
+            ->whereIn('kp.petugas_id', $ids)
+            ->groupBy('kp.petugas_id')
+            ->selectRaw('kp.petugas_id, COALESCE(SUM(kw.muatan),0) as m')
+            ->pluck('m', 'kp.petugas_id');
+
+        $collection->transform(function ($p) use ($aktif, $muatan) {
+            $p->aktif_count = (int) ($aktif[$p->id] ?? 0);
+            $p->muatan_final = (int) ($muatan[$p->id] ?? 0);
+
+            return $p;
+        });
+    }
+
+    public function show(Petugas $petugas)
+    {
+        $this->authorize('view', $petugas);
+
+        $riwayat = DB::table('kegiatan_petugas as kp')
+            ->join('kegiatan as k', 'k.id', '=', 'kp.kegiatan_id')
+            ->where('kp.petugas_id', $petugas->id)
+            ->orderByDesc('k.tahun')
+            ->orderByDesc('k.created_at')
+            ->select('kp.id as kp_id', 'k.id as kegiatan_id', 'k.nama', 'k.jenis', 'k.tahun', 'k.gelombang', 'k.status', 'kp.peran', 'kp.label')
+            ->get();
+
+        // Beban final (jml SubSLS + muatan) per penugasan PPL.
+        $beban = DB::table('partisi_detail as pd')
+            ->join('sesi_partisi as sp', 'sp.id', '=', 'pd.sesi_partisi_id')
+            ->where('sp.status', 'final')
+            ->join('kegiatan_wilayah as kw', function ($j) {
+                $j->on('kw.subsls_id', '=', 'pd.subsls_id')->on('kw.kegiatan_id', '=', 'sp.kegiatan_id');
+            })
+            ->whereIn('pd.ppl_id', $riwayat->pluck('kp_id'))
+            ->groupBy('pd.ppl_id')
+            ->selectRaw('pd.ppl_id, COUNT(*) as jml, COALESCE(SUM(kw.muatan),0) as muatan')
+            ->get()
+            ->keyBy('ppl_id');
+
+        $riwayat = $riwayat->map(fn ($r) => [
+            'kegiatan_id' => $r->kegiatan_id,
+            'nama' => $r->nama,
+            'jenis' => $r->jenis,
+            'tahun' => $r->tahun,
+            'gelombang' => $r->gelombang,
+            'status' => $r->status,
+            'peran' => $r->peran,
+            'label' => $r->label,
+            'jml_subsls' => (int) ($beban[$r->kp_id]->jml ?? 0),
+            'muatan' => (int) ($beban[$r->kp_id]->muatan ?? 0),
+        ]);
+
+        return Inertia::render('Petugas/Show', [
+            'petugas' => $petugas->only('id', 'nama', 'nip', 'telepon', 'satker'),
+            'riwayat' => $riwayat,
         ]);
     }
 
