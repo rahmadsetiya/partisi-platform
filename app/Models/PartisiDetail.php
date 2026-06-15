@@ -12,7 +12,7 @@ class PartisiDetail extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'sesi_partisi_id', 'subsls_id', 'ppl_id', 'pml_id',
+        'sesi_partisi_id', 'subsls_id', 'ppl_id', 'pml_id', 'status_lapangan',
     ];
 
     public function sesiPartisi(): BelongsTo

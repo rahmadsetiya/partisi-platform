@@ -122,6 +122,9 @@ const grup = computed(() => {
                     <h2 class="text-xl font-semibold leading-tight text-gray-800">Hasil: {{ sesi.nama }}</h2>
                 </div>
                 <div class="flex items-center gap-2 no-print">
+                    <Link :href="route('kegiatan.partisi.monitoring', { kegiatan: kegiatan.id, sesi: sesi.id })">
+                        <SecondaryButton>Monitoring</SecondaryButton>
+                    </Link>
                     <Link :href="route('kegiatan.partisi.suratTugas', { kegiatan: kegiatan.id, sesi: sesi.id })">
                         <SecondaryButton>Surat Tugas</SecondaryButton>
                     </Link>

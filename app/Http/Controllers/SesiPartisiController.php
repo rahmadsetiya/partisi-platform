@@ -309,6 +309,64 @@ class SesiPartisiController extends Controller
     }
 
     /**
+     * Monitoring pelaksanaan lapangan: progres pencacahan per SubSLS & per PPL.
+     */
+    public function monitoring(Kegiatan $kegiatan, SesiPartisi $sesi)
+    {
+        $this->pastikanMilik($kegiatan, $sesi);
+
+        $rows = DB::table('partisi_detail as pd')
+            ->join('subsls as s', 's.id', '=', 'pd.subsls_id')
+            ->join('kegiatan_petugas as kpp', 'kpp.id', '=', 'pd.ppl_id')
+            ->where('pd.sesi_partisi_id', $sesi->id)
+            ->orderBy('kpp.group_id')
+            ->orderBy('s.idsubsls')
+            ->select('pd.subsls_id', 's.idsubsls', 's.nmkec', 's.nmdesa', 's.nmsls',
+                'kpp.label as ppl_label', 'kpp.group_id', 'pd.status_lapangan')
+            ->get();
+
+        $hitung = fn ($coll) => [
+            'total' => $coll->count(),
+            'belum' => $coll->where('status_lapangan', 'belum')->count(),
+            'proses' => $coll->where('status_lapangan', 'proses')->count(),
+            'selesai' => $coll->where('status_lapangan', 'selesai')->count(),
+        ];
+
+        $perPpl = $rows->groupBy('ppl_label')->map(fn ($g) => array_merge(
+            ['label' => $g->first()->ppl_label], $hitung($g)
+        ))->values();
+
+        return Inertia::render('Kegiatan/Partisi/Monitoring', [
+            'kegiatan' => $kegiatan->only('id', 'nama'),
+            'sesi' => $sesi->only('id', 'nama', 'status'),
+            'rows' => $rows,
+            'overall' => $hitung($rows),
+            'perPpl' => $perPpl,
+            'geojsonUrl' => route('kegiatan.partisi.geojson', $kegiatan->id),
+            'statusBySubsls' => $rows->mapWithKeys(fn ($r) => [$r->subsls_id => $r->status_lapangan]),
+        ]);
+    }
+
+    /**
+     * Perbarui status pencacahan satu SubSLS.
+     */
+    public function updateStatusLapangan(Request $request, Kegiatan $kegiatan, SesiPartisi $sesi)
+    {
+        $this->pastikanMilik($kegiatan, $sesi);
+
+        $data = $request->validate([
+            'subsls_id' => ['required', 'integer'],
+            'status_lapangan' => ['required', 'in:belum,proses,selesai'],
+        ]);
+
+        $sesi->detail()
+            ->where('subsls_id', $data['subsls_id'])
+            ->update(['status_lapangan' => $data['status_lapangan']]);
+
+        return back()->with('success', 'Status pencacahan diperbarui.');
+    }
+
+    /**
      * Endpoint GeoJSON SubSLS sebuah kegiatan (di-fetch async oleh peta).
      */
     public function geojson(Kegiatan $kegiatan)
