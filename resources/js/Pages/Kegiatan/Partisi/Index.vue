@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
     kegiatan: Object,
@@ -11,7 +11,15 @@ const props = defineProps({
     jumlahPpl: Number,
     jumlahPml: Number,
     jumlahWilayah: Number,
+    totalMuatan: Number,
     muatanLengkap: Boolean,
+});
+
+const targetMuatan = ref(null);
+const saranPpl = computed(() => {
+    const t = Number(targetMuatan.value);
+    if (!t || t <= 0 || !props.totalMuatan) return null;
+    return Math.ceil(props.totalMuatan / t);
 });
 
 const flash = computed(() => usePage().props.flash);
@@ -125,6 +133,17 @@ onUnmounted(() => {
                                         class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                                     Prioritaskan 1 desa per PPL
                                 </label>
+                                <div class="rounded-md bg-gray-50 border border-gray-100 p-2">
+                                    <label class="flex items-center gap-2 text-xs text-gray-600">
+                                        Target muatan/PPL:
+                                        <input v-model="targetMuatan" type="number" min="1" placeholder="mis. 200"
+                                            class="w-24 rounded border-gray-300 text-xs py-1 focus:border-indigo-500 focus:ring-indigo-500" />
+                                    </label>
+                                    <p v-if="saranPpl" class="mt-1 text-xs" :class="jumlahPpl < saranPpl ? 'text-amber-600' : 'text-green-600'">
+                                        Total muatan {{ totalMuatan.toLocaleString('id-ID') }} → disarankan ≈ <b>{{ saranPpl }} PPL</b>
+                                        (saat ini {{ jumlahPpl }} PPL<span v-if="jumlahPpl < saranPpl">, tambah lewat menu Petugas/halaman kegiatan</span>).
+                                    </p>
+                                </div>
                                 <PrimaryButton class="w-full justify-center" :disabled="!bisaBuat || autoForm.processing" @click="buatSesiAuto">
                                     {{ autoForm.processing ? 'Memproses…' : '⚡ Jalankan Partisi Auto' }}
                                 </PrimaryButton>

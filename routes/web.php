@@ -83,6 +83,8 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.partisi.finalize');
     Route::patch('kegiatan/{kegiatan}/partisi/{sesi}/reopen', [SesiPartisiController::class, 'reopen'])
         ->name('kegiatan.partisi.reopen');
+    Route::post('kegiatan/{kegiatan}/partisi/{sesi}/regenerate', [SesiPartisiController::class, 'regenerate'])
+        ->name('kegiatan.partisi.regenerate');
     Route::delete('kegiatan/{kegiatan}/partisi/{sesi}', [SesiPartisiController::class, 'destroy'])
         ->name('kegiatan.partisi.destroy');
 

@@ -139,6 +139,16 @@ function reopen() {
         router.patch(route('kegiatan.partisi.reopen', { kegiatan: props.kegiatan.id, sesi: props.sesi.id }), {}, { preserveScroll: true });
     }
 }
+
+// ----- Jalankan ulang auto -----
+const ulangPrioritasDesa = ref(props.sesi.config?.prioritas_desa ?? false);
+
+function jalankanUlang() {
+    if (!confirm('Jalankan ulang partisi auto? Pembagian saat ini (termasuk poles manual) akan ditimpa.')) return;
+    router.post(route('kegiatan.partisi.regenerate', { kegiatan: props.kegiatan.id, sesi: props.sesi.id }), {
+        prioritas_desa: ulangPrioritasDesa.value,
+    });
+}
 </script>
 
 <template>
@@ -248,6 +258,16 @@ function reopen() {
                                     Finalkan Sesi
                                 </SecondaryButton>
                                 <p v-if="sisa > 0" class="text-[11px] text-amber-600 text-center">Bagi semua SubSLS dulu untuk finalkan.</p>
+
+                                <!-- Jalankan ulang (khusus sesi auto) -->
+                                <div v-if="sesi.tipe === 'auto'" class="mt-2 pt-2 border-t border-gray-100">
+                                    <label class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                                        <input v-model="ulangPrioritasDesa" type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                        Prioritaskan 1 desa per PPL
+                                    </label>
+                                    <SecondaryButton class="w-full justify-center" @click="jalankanUlang">🔄 Jalankan Ulang Auto</SecondaryButton>
+                                    <p class="text-[11px] text-gray-400 text-center mt-1">Menimpa pembagian saat ini dengan hasil algoritma baru.</p>
+                                </div>
                             </template>
                             <template v-else>
                                 <p class="text-sm text-green-700 text-center">Sesi sudah final.</p>

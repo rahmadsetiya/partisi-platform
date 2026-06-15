@@ -31,6 +31,7 @@ class SesiPartisiController extends Controller
             'jumlahPpl' => (int) $kegiatan->petugas()->where('peran', 'ppl')->count(),
             'jumlahPml' => (int) $kegiatan->petugas()->where('peran', 'pml')->count(),
             'jumlahWilayah' => $ringkasan['total'],
+            'totalMuatan' => $ringkasan['total_muatan'],
             'muatanLengkap' => $ringkasan['total'] > 0 && $ringkasan['terisi'] === $ringkasan['total'],
         ]);
     }
@@ -169,7 +170,7 @@ class SesiPartisiController extends Controller
 
         return Inertia::render('Kegiatan/Partisi/Edit', [
             'kegiatan' => $kegiatan->only('id', 'nama', 'status'),
-            'sesi' => $sesi->only('id', 'nama', 'tipe', 'cv', 'status', 'finalized_at'),
+            'sesi' => $sesi->only('id', 'nama', 'tipe', 'cv', 'status', 'finalized_at', 'config'),
             'ppl' => $ppl,
             'pml' => $pml,
             'assignments' => $assignments,
@@ -369,6 +370,74 @@ class SesiPartisiController extends Controller
         return back()->with('success', 'Sesi dikembalikan ke draft.');
     }
 
+    /**
+     * Jalankan ulang algoritma auto pada sesi draft (menimpa assignment lama).
+     */
+    public function regenerate(Request $request, Kegiatan $kegiatan, SesiPartisi $sesi, PartisiRunner $runner)
+    {
+        $this->pastikanMilik($kegiatan, $sesi);
+
+        if ($sesi->tipe !== 'auto') {
+            return back()->with('error', 'Hanya sesi auto yang bisa dijalankan ulang.');
+        }
+        if ($sesi->isFinal()) {
+            return back()->with('error', 'Sesi sudah final. Kembalikan ke draft dulu untuk menjalankan ulang.');
+        }
+
+        $data = $request->validate(['prioritas_desa' => ['boolean']]);
+
+        $nPpl = (int) $kegiatan->petugas()->where('peran', 'ppl')->count();
+        if ($nPpl < 1) {
+            return back()->with('error', 'Tambahkan minimal satu PPL.');
+        }
+
+        $total = (int) DB::table('kegiatan_wilayah as kw')
+            ->join('subsls as s', 's.id', '=', 'kw.subsls_id')
+            ->where('kw.kegiatan_id', $kegiatan->id)
+            ->whereNotNull('s.geometry')
+            ->count();
+
+        if ($total < 1) {
+            return back()->with('error', 'Kegiatan belum memiliki wilayah kerja (SubSLS) bergeometri.');
+        }
+        if ($nPpl > $total) {
+            return back()->with('error', 'Jumlah PPL melebihi jumlah SubSLS.');
+        }
+
+        // Perbarui config (pertahankan prioritas_desa lama bila tak dikirim) + jumlah petugas.
+        $config = $sesi->config ?? [];
+        $config['prioritas_desa'] = (bool) ($data['prioritas_desa'] ?? ($config['prioritas_desa'] ?? false));
+        $config['restarts'] = $config['restarts'] ?? 6;
+        $sesi->update([
+            'config' => $config,
+            'n_ppl' => $nPpl,
+            'n_pml' => (int) $kegiatan->petugas()->where('peran', 'pml')->count(),
+        ]);
+
+        // Area besar → background.
+        if ($total > self::BATAS_SYNC) {
+            $sesi->update(['job_status' => 'antri', 'job_error' => null]);
+            JalankanPartisiAuto::dispatch($sesi->id);
+
+            return redirect()->route('kegiatan.partisi.index', $kegiatan->id)
+                ->with('success', "Partisi ulang untuk {$total} SubSLS sedang diproses di latar belakang.");
+        }
+
+        // Sinkron.
+        $sesi->update(['job_status' => 'proses', 'job_error' => null]);
+        try {
+            $runner->run($sesi);
+            $sesi->update(['job_status' => 'selesai']);
+        } catch (\Throwable $e) {
+            $sesi->update(['job_status' => 'gagal', 'job_error' => mb_substr($e->getMessage(), 0, 500)]);
+
+            return back()->with('error', 'Partisi ulang gagal: '.$e->getMessage());
+        }
+
+        return redirect()->route('kegiatan.partisi.show', [$kegiatan->id, $sesi->id])
+            ->with('success', 'Partisi auto dijalankan ulang (CV '.number_format((float) $sesi->fresh()->cv * 100, 1).'%).');
+    }
+
     public function destroy(Kegiatan $kegiatan, SesiPartisi $sesi)
     {
         $this->pastikanMilik($kegiatan, $sesi);
@@ -393,12 +462,13 @@ class SesiPartisiController extends Controller
     private function ringkasanWilayah(Kegiatan $kegiatan): array
     {
         $agg = $kegiatan->wilayah()
-            ->selectRaw('COUNT(*) as total, COUNT(muatan) as terisi')
+            ->selectRaw('COUNT(*) as total, COUNT(muatan) as terisi, COALESCE(SUM(muatan),0) as total_muatan')
             ->first();
 
         return [
             'total' => (int) $agg->total,
             'terisi' => (int) $agg->terisi,
+            'total_muatan' => (int) $agg->total_muatan,
         ];
     }
 

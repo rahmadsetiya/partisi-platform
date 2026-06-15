@@ -16,6 +16,18 @@ const props = defineProps({
 
 const isFinal = computed(() => props.sesi.status === 'final');
 
+// Ringkasan kualitas keseimbangan beban antar PPL.
+const statBeban = computed(() => {
+    if (!props.ringkasan.length) return null;
+    const muatan = props.ringkasan.map((g) => g.muatan);
+    return {
+        min: Math.min(...muatan),
+        max: Math.max(...muatan),
+        gap: Math.max(...muatan) - Math.min(...muatan),
+        kosong: props.ringkasan.filter((g) => g.jumlah === 0).length,
+    };
+});
+
 function cvLabel(cv) {
     return cv === null || cv === undefined ? '—' : (cv * 100).toFixed(1) + '%';
 }
@@ -106,6 +118,11 @@ const grup = computed(() => {
                         {{ rows.length.toLocaleString('id-ID') }} SubSLS ·
                         total muatan {{ totalMuatan.toLocaleString('id-ID') }} ·
                         CV {{ cvLabel(sesi.cv) }}
+                    </p>
+                    <p v-if="statBeban" class="mt-1 text-xs text-gray-500">
+                        Beban per PPL: min {{ statBeban.min.toLocaleString('id-ID') }} · max {{ statBeban.max.toLocaleString('id-ID') }} ·
+                        selisih (gap) {{ statBeban.gap.toLocaleString('id-ID') }}
+                        <span v-if="statBeban.kosong" class="text-amber-600"> · {{ statBeban.kosong }} PPL tanpa wilayah</span>
                     </p>
                     <p v-if="!isFinal" class="mt-2 text-xs text-amber-600 no-print">Catatan: sesi masih draft — hasil bisa berubah.</p>
                 </div>
