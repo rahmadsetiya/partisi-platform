@@ -12,9 +12,12 @@ use Inertia\Inertia;
 
 class KegiatanController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
+
         $kegiatan = Kegiatan::with('creator')
+            ->when($user->role !== 'admin', fn ($q) => $q->where('satker', $user->satker))
             ->orderBy('tahun', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -33,6 +36,7 @@ class KegiatanController extends Controller
     {
         Kegiatan::create([
             ...$request->validated(),
+            'satker' => $request->user()->satker,
             'created_by' => $request->user()->id,
         ]);
 
@@ -42,6 +46,8 @@ class KegiatanController extends Controller
 
     public function show(Kegiatan $kegiatan)
     {
+        $this->authorize('view', $kegiatan);
+
         $kegiatan->load(['creator', 'geojsonUploads' => fn ($q) => $q->latest('uploaded_at')->limit(1)]);
 
         $muatan = $kegiatan->wilayah()
@@ -53,8 +59,10 @@ class KegiatanController extends Controller
             ->orderBy('group_id')
             ->get(['id', 'petugas_id', 'peran', 'label', 'group_id']);
 
+        $user = request()->user();
         $assigned = $petugas->pluck('petugas_id')->all();
         $petugasTersedia = Petugas::whereNotIn('id', $assigned)
+            ->when($user->role !== 'admin', fn ($q) => $q->where('satker', $user->satker))
             ->orderBy('nama')
             ->get(['id', 'nama', 'nip']);
 
@@ -80,6 +88,8 @@ class KegiatanController extends Controller
 
     public function edit(Kegiatan $kegiatan)
     {
+        $this->authorize('update', $kegiatan);
+
         return Inertia::render('Kegiatan/Edit', [
             'kegiatan' => $kegiatan,
         ]);
@@ -87,6 +97,8 @@ class KegiatanController extends Controller
 
     public function update(UpdateKegiatanRequest $request, Kegiatan $kegiatan)
     {
+        $this->authorize('update', $kegiatan);
+
         $kegiatan->update($request->validated());
 
         return redirect()->route('kegiatan.show', $kegiatan)
@@ -95,6 +107,8 @@ class KegiatanController extends Controller
 
     public function destroy(Kegiatan $kegiatan)
     {
+        $this->authorize('delete', $kegiatan);
+
         $kegiatan->delete();
 
         return redirect()->route('kegiatan.index')
@@ -103,6 +117,8 @@ class KegiatanController extends Controller
 
     public function updateStatus(Request $request, Kegiatan $kegiatan)
     {
+        $this->authorize('update', $kegiatan);
+
         $request->validate([
             'status' => ['required', 'in:draft,aktif,selesai'],
         ]);

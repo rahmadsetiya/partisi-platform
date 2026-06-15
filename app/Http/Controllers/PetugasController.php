@@ -15,8 +15,11 @@ class PetugasController extends Controller
     {
         $q = trim((string) $request->query('q', ''));
 
+        $user = $request->user();
+
         $petugas = Petugas::query()
             ->withCount('kegiatanPetugas')
+            ->when($user->role !== 'admin', fn ($query) => $query->where('satker', $user->satker))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($w) use ($q) {
                     $w->where('nama', 'like', "%{$q}%")
@@ -36,20 +39,35 @@ class PetugasController extends Controller
 
     public function store(StorePetugasRequest $request)
     {
-        Petugas::create($request->validated());
+        $data = $request->validated();
+        // Koordinator hanya boleh menambah petugas di satker-nya.
+        if ($request->user()->role !== 'admin') {
+            $data['satker'] = $request->user()->satker;
+        }
+
+        Petugas::create($data);
 
         return back()->with('success', 'Petugas berhasil ditambahkan.');
     }
 
     public function update(UpdatePetugasRequest $request, Petugas $petugas)
     {
-        $petugas->update($request->validated());
+        $this->authorize('update', $petugas);
+
+        $data = $request->validated();
+        if ($request->user()->role !== 'admin') {
+            $data['satker'] = $request->user()->satker;
+        }
+
+        $petugas->update($data);
 
         return back()->with('success', 'Petugas berhasil diperbarui.');
     }
 
     public function destroy(Petugas $petugas)
     {
+        $this->authorize('delete', $petugas);
+
         if ($petugas->kegiatanPetugas()->exists()) {
             return back()->with('error', 'Petugas tidak bisa dihapus karena masih ditugaskan di kegiatan.');
         }
@@ -92,7 +110,7 @@ class PetugasController extends Controller
                 'nama' => $row['nama'],
                 'nip' => $nip ?: null,
                 'telepon' => $row['telepon'] ?? null,
-                'satker' => $row['satker'] ?? null,
+                'satker' => $request->user()->role !== 'admin' ? $request->user()->satker : ($row['satker'] ?? null),
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
