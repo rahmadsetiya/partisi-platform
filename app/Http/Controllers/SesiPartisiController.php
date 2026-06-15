@@ -200,10 +200,10 @@ class SesiPartisiController extends Controller
             ->orderBy('kpp.group_id')
             ->orderBy('s.idsubsls')
             ->select(
-                's.idsubsls', 's.nmkec', 's.nmdesa', 's.nmsls', 'kw.muatan',
+                'pd.subsls_id', 's.idsubsls', 's.nmkec', 's.nmdesa', 's.nmsls', 'kw.muatan',
                 'kpp.label as ppl_label', 'pp.nama as ppl_nama', 'pp.nip as ppl_nip',
                 'kpm.label as pml_label', 'pm.nama as pml_nama',
-                'kpp.group_id'
+                'kpp.group_id', 'kpm.group_id as pml_group_id'
             )
             ->get();
 
@@ -222,16 +222,89 @@ class SesiPartisiController extends Controller
             'label' => $p->label,
             'nama' => $p->petugas?->nama,
             'pml' => optional($rows->firstWhere('ppl_label', $p->label))->pml_label,
+            'group_id' => (int) $p->group_id,
             'jumlah' => $aggByLabel[$p->label]['jumlah'] ?? 0,
             'muatan' => $aggByLabel[$p->label]['muatan'] ?? 0,
         ])->values();
+
+        // Ringkasan per PML (untuk legenda toggle PML).
+        $semuaPml = $kegiatan->petugas()->where('peran', 'pml')
+            ->with('petugas:id,nama')
+            ->orderBy('group_id')
+            ->get(['id', 'petugas_id', 'label', 'group_id']);
+        $aggByPml = $rows->whereNotNull('pml_label')->groupBy('pml_label')->map(fn ($g) => [
+            'jumlah' => $g->count(),
+            'muatan' => (int) $g->sum('muatan'),
+        ]);
+        $ringkasanPml = $semuaPml->map(fn ($p) => [
+            'label' => $p->label,
+            'nama' => $p->petugas?->nama,
+            'group_id' => (int) $p->group_id,
+            'jumlah' => $aggByPml[$p->label]['jumlah'] ?? 0,
+            'muatan' => $aggByPml[$p->label]['muatan'] ?? 0,
+        ])->values();
+
+        // Peta: subsls_id → indeks warna (group_id PPL / PML).
+        $pplBySubsls = $rows->mapWithKeys(fn ($r) => [$r->subsls_id => (int) $r->group_id]);
+        $pmlBySubsls = $rows->filter(fn ($r) => $r->pml_group_id !== null)
+            ->mapWithKeys(fn ($r) => [$r->subsls_id => (int) $r->pml_group_id]);
 
         return Inertia::render('Kegiatan/Partisi/Hasil', [
             'kegiatan' => $kegiatan->only('id', 'nama', 'jenis', 'tahun', 'gelombang'),
             'sesi' => $sesi->only('id', 'nama', 'tipe', 'cv', 'status', 'finalized_at'),
             'rows' => $rows,
             'ringkasan' => $ringkasan,
+            'ringkasanPml' => $ringkasanPml,
             'totalMuatan' => (int) $rows->sum('muatan'),
+            'geojsonUrl' => route('kegiatan.partisi.geojson', $kegiatan->id),
+            'pplBySubsls' => $pplBySubsls,
+            'pmlBySubsls' => $pmlBySubsls,
+        ]);
+    }
+
+    /**
+     * Surat Tugas per PPL (read-only, print-friendly) — satu halaman per PPL.
+     */
+    public function suratTugas(Kegiatan $kegiatan, SesiPartisi $sesi)
+    {
+        $this->pastikanMilik($kegiatan, $sesi);
+
+        $rows = DB::table('partisi_detail as pd')
+            ->join('subsls as s', 's.id', '=', 'pd.subsls_id')
+            ->leftJoin('kegiatan_wilayah as kw', function ($j) use ($kegiatan) {
+                $j->on('kw.subsls_id', '=', 'pd.subsls_id')->where('kw.kegiatan_id', '=', $kegiatan->id);
+            })
+            ->join('kegiatan_petugas as kpp', 'kpp.id', '=', 'pd.ppl_id')
+            ->join('petugas as pp', 'pp.id', '=', 'kpp.petugas_id')
+            ->leftJoin('kegiatan_petugas as kpm', 'kpm.id', '=', 'pd.pml_id')
+            ->leftJoin('petugas as pm', 'pm.id', '=', 'kpm.petugas_id')
+            ->where('pd.sesi_partisi_id', $sesi->id)
+            ->orderBy('kpp.group_id')
+            ->orderBy('s.idsubsls')
+            ->select('kpp.label as ppl_label', 'pp.nama as ppl_nama', 'pp.nip as ppl_nip',
+                'pm.nama as pml_nama', 'kpm.label as pml_label',
+                's.idsubsls', 's.nmkec', 's.nmdesa', 's.nmsls', 'kw.muatan')
+            ->get();
+
+        // Kelompokkan per PPL.
+        $perPpl = $rows->groupBy('ppl_label')->map(fn ($g) => [
+            'ppl_label' => $g->first()->ppl_label,
+            'ppl_nama' => $g->first()->ppl_nama,
+            'ppl_nip' => $g->first()->ppl_nip,
+            'pml_nama' => $g->first()->pml_nama,
+            'pml_label' => $g->first()->pml_label,
+            'jumlah' => $g->count(),
+            'muatan' => (int) $g->sum('muatan'),
+            'items' => $g->map(fn ($r) => [
+                'idsubsls' => $r->idsubsls, 'nmkec' => $r->nmkec,
+                'nmdesa' => $r->nmdesa, 'nmsls' => $r->nmsls, 'muatan' => $r->muatan,
+            ])->values(),
+        ])->values();
+
+        return Inertia::render('Kegiatan/Partisi/SuratTugas', [
+            'kegiatan' => $kegiatan->only('id', 'nama', 'jenis', 'tahun', 'gelombang', 'tanggal_mulai', 'tanggal_selesai'),
+            'sesi' => $sesi->only('id', 'nama', 'status'),
+            'perPpl' => $perPpl,
         ]);
     }
 

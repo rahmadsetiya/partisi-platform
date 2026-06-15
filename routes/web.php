@@ -77,6 +77,8 @@ Route::middleware('auth')->group(function () {
         ->name('kegiatan.partisi.show');
     Route::get('kegiatan/{kegiatan}/partisi/{sesi}/hasil', [SesiPartisiController::class, 'hasil'])
         ->name('kegiatan.partisi.hasil');
+    Route::get('kegiatan/{kegiatan}/partisi/{sesi}/surat-tugas', [SesiPartisiController::class, 'suratTugas'])
+        ->name('kegiatan.partisi.suratTugas');
     Route::patch('kegiatan/{kegiatan}/partisi/{sesi}/assign', [SesiPartisiController::class, 'saveAssignments'])
         ->name('kegiatan.partisi.assign');
     Route::patch('kegiatan/{kegiatan}/partisi/{sesi}/finalize', [SesiPartisiController::class, 'finalize'])

@@ -2,8 +2,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import PetaWilayah from '@/Components/PetaWilayah.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import * as XLSX from 'xlsx';
 
 const props = defineProps({
@@ -11,10 +12,34 @@ const props = defineProps({
     sesi: Object,
     rows: Array,
     ringkasan: Array,
+    ringkasanPml: { type: Array, default: () => [] },
     totalMuatan: Number,
+    geojsonUrl: String,
+    pplBySubsls: { type: Object, default: () => ({}) },
+    pmlBySubsls: { type: Object, default: () => ({}) },
 });
 
 const isFinal = computed(() => props.sesi.status === 'final');
+
+// ---------- Peta hasil (warna per PPL / per PML) ----------
+const PALET = [
+    '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ec4899',
+    '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#06b6d4', '#d946ef',
+    '#eab308', '#10b981', '#8b5cf6', '#f43f5e', '#0ea5e9', '#65a30d',
+];
+const warna = (i) => PALET[i % PALET.length];
+const modePeta = ref('ppl'); // 'ppl' | 'pml'
+
+const colorMap = computed(() => {
+    const src = modePeta.value === 'pml' ? props.pmlBySubsls : props.pplBySubsls;
+    const m = {};
+    for (const [sid, idx] of Object.entries(src)) m[sid] = warna(idx);
+    return m;
+});
+
+const legenda = computed(() =>
+    (modePeta.value === 'pml' ? props.ringkasanPml : props.ringkasan).filter((g) => g.jumlah > 0),
+);
 
 // Ringkasan kualitas keseimbangan beban antar PPL.
 const statBeban = computed(() => {
@@ -97,6 +122,9 @@ const grup = computed(() => {
                     <h2 class="text-xl font-semibold leading-tight text-gray-800">Hasil: {{ sesi.nama }}</h2>
                 </div>
                 <div class="flex items-center gap-2 no-print">
+                    <Link :href="route('kegiatan.partisi.suratTugas', { kegiatan: kegiatan.id, sesi: sesi.id })">
+                        <SecondaryButton>Surat Tugas</SecondaryButton>
+                    </Link>
                     <SecondaryButton @click="cetak">Cetak / PDF</SecondaryButton>
                     <PrimaryButton @click="unduhExcel">Unduh Excel</PrimaryButton>
                 </div>
@@ -125,6 +153,25 @@ const grup = computed(() => {
                         <span v-if="statBeban.kosong" class="text-amber-600"> · {{ statBeban.kosong }} PPL tanpa wilayah</span>
                     </p>
                     <p v-if="!isFinal" class="mt-2 text-xs text-amber-600 no-print">Catatan: sesi masih draft — hasil bisa berubah.</p>
+                </div>
+
+                <!-- Peta hasil -->
+                <div class="bg-white shadow-sm sm:rounded-lg p-4 no-print">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-semibold text-gray-700">Peta Hasil</h4>
+                        <div class="inline-flex rounded-md border border-gray-200 overflow-hidden text-xs">
+                            <button @click="modePeta = 'ppl'" :class="['px-3 py-1', modePeta === 'ppl' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600']">Per PPL</button>
+                            <button @click="modePeta = 'pml'" :disabled="!ringkasanPml.length"
+                                :class="['px-3 py-1', modePeta === 'pml' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600', !ringkasanPml.length ? 'opacity-40 cursor-not-allowed' : '']">Per PML</button>
+                        </div>
+                    </div>
+                    <PetaWilayah :geojson-url="geojsonUrl" :color-map="colorMap" height="520px" />
+                    <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                        <span v-for="g in legenda" :key="g.label" class="flex items-center gap-1.5 text-xs text-gray-600">
+                            <span class="inline-block h-3 w-3 rounded-full" :style="{ backgroundColor: warna(g.group_id) }"></span>
+                            {{ g.label }} <span class="text-gray-400">· {{ g.jumlah }} SubSLS · {{ g.muatan.toLocaleString('id-ID') }}</span>
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Ringkasan per PPL -->
