@@ -54,4 +54,13 @@ class Kegiatan extends Model
     {
         return $this->sesiPartisi()->where('status', 'final')->latest()->first();
     }
+
+    /**
+     * Kegiatan terkunci bila ada sesi partisi final — input (wilayah/muatan/
+     * petugas/koneksi) tak boleh diubah agar tak menginvalidasi hasil final.
+     */
+    public function adaPartisiFinal(): bool
+    {
+        return $this->sesiPartisi()->where('status', 'final')->exists();
+    }
 }

@@ -83,6 +83,7 @@ class KegiatanController extends Controller
             'jumlahSesi' => (int) $kegiatan->sesiPartisi()->count(),
             'sesiFinal' => $sesiFinal,
             'jumlahOverride' => (int) $kegiatan->overrides()->count(),
+            'terkunci' => $kegiatan->adaPartisiFinal(),
         ]);
     }
 
@@ -122,6 +123,11 @@ class KegiatanController extends Controller
         $request->validate([
             'status' => ['required', 'in:draft,aktif,selesai'],
         ]);
+
+        // Kegiatan hanya boleh "selesai" jika pembagian wilayah sudah difinalkan.
+        if ($request->status === 'selesai' && ! $kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan belum bisa diselesaikan: belum ada sesi partisi yang difinalkan.');
+        }
 
         $kegiatan->update(['status' => $request->status]);
 

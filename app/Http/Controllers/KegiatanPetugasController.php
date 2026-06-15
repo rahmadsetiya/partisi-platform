@@ -10,6 +10,10 @@ class KegiatanPetugasController extends Controller
 {
     public function store(Request $request, Kegiatan $kegiatan)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah petugas.');
+        }
+
         $data = $request->validate([
             'petugas_id' => ['required', 'integer', 'exists:petugas,id'],
             'peran' => ['required', 'in:ppl,pml'],
@@ -42,6 +46,10 @@ class KegiatanPetugasController extends Controller
     public function destroy(Kegiatan $kegiatan, KegiatanPetugas $kegiatanPetugas)
     {
         abort_unless($kegiatanPetugas->kegiatan_id === $kegiatan->id, 404);
+
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu.');
+        }
 
         $peran = $kegiatanPetugas->peran;
         $kegiatanPetugas->delete();

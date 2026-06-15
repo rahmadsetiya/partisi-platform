@@ -16,9 +16,22 @@ const props = defineProps({
     jumlahSesi: Number,
     sesiFinal: Object,
     jumlahOverride: Number,
+    terkunci: Boolean,
 });
 
 const flash = computed(() => usePage().props.flash);
+
+// ---------- Checklist kesiapan ----------
+const kesiapan = computed(() => [
+    { label: 'Wilayah kerja dimuat', ok: props.jumlahWilayah > 0 },
+    { label: 'Muatan lengkap', ok: props.jumlahWilayah > 0 && props.muatanTerisi === props.jumlahWilayah },
+    { label: 'Ada PPL', ok: props.petugasPpl.length > 0 },
+    { label: 'Ada PML', ok: props.petugasPml.length > 0 },
+    { label: 'Partisi difinalkan', ok: !!props.sesiFinal },
+]);
+const siapPartisi = computed(() =>
+    props.jumlahWilayah > 0 && props.muatanTerisi === props.jumlahWilayah && props.petugasPpl.length > 0,
+);
 
 // ---------- Assign petugas ----------
 const tambahPpl = useForm({ petugas_id: '', peran: 'ppl' });
@@ -107,6 +120,26 @@ function formatTanggal(str) {
                 </div>
                 <div v-if="flash.error" class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200">
                     {{ flash.error }}
+                </div>
+
+                <!-- Banner terkunci -->
+                <div v-if="terkunci" class="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                    🔒 Kegiatan terkunci karena sudah ada <b>sesi partisi final</b>. Wilayah, muatan, petugas, dan koneksi tidak bisa diubah.
+                    Kembalikan sesi final ke draft (di halaman Partisi) untuk mengedit kembali.
+                </div>
+
+                <!-- Checklist kesiapan -->
+                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Kesiapan Kegiatan</h4>
+                        <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <li v-for="k in kesiapan" :key="k.label" class="flex items-center gap-2 text-sm">
+                                <span :class="k.ok ? 'text-green-600' : 'text-gray-300'">{{ k.ok ? '✅' : '⬜' }}</span>
+                                <span :class="k.ok ? 'text-gray-700' : 'text-gray-400'">{{ k.label }}</span>
+                            </li>
+                        </ul>
+                        <p v-if="!siapPartisi" class="mt-3 text-xs text-amber-600">Lengkapi wilayah, muatan, dan PPL sebelum menjalankan partisi.</p>
+                    </div>
                 </div>
 
                 <!-- Info utama -->
@@ -210,11 +243,11 @@ function formatTanggal(str) {
                                             <span class="text-gray-600"> · {{ kp.petugas?.nama }}</span>
                                             <span v-if="kp.petugas?.nip" class="text-gray-400"> ({{ kp.petugas.nip }})</span>
                                         </span>
-                                        <button @click="lepasPetugas(kp)" class="text-red-500 hover:text-red-700 text-xs">Lepas</button>
+                                        <button v-if="!terkunci" @click="lepasPetugas(kp)" class="text-red-500 hover:text-red-700 text-xs">Lepas</button>
                                     </li>
                                     <li v-if="!petugasPpl.length" class="text-sm text-gray-400 px-1">Belum ada PPL.</li>
                                 </ul>
-                                <div class="flex items-center gap-2">
+                                <div v-if="!terkunci" class="flex items-center gap-2">
                                     <select v-model="tambahPpl.petugas_id"
                                         class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
                                         <option value="">-- Pilih petugas --</option>
@@ -241,11 +274,11 @@ function formatTanggal(str) {
                                             <span class="text-gray-600"> · {{ kp.petugas?.nama }}</span>
                                             <span v-if="kp.petugas?.nip" class="text-gray-400"> ({{ kp.petugas.nip }})</span>
                                         </span>
-                                        <button @click="lepasPetugas(kp)" class="text-red-500 hover:text-red-700 text-xs">Lepas</button>
+                                        <button v-if="!terkunci" @click="lepasPetugas(kp)" class="text-red-500 hover:text-red-700 text-xs">Lepas</button>
                                     </li>
                                     <li v-if="!petugasPml.length" class="text-sm text-gray-400 px-1">Belum ada PML.</li>
                                 </ul>
-                                <div class="flex items-center gap-2">
+                                <div v-if="!terkunci" class="flex items-center gap-2">
                                     <select v-model="tambahPml.petugas_id"
                                         class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
                                         <option value="">-- Pilih petugas --</option>

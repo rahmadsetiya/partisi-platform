@@ -24,6 +24,10 @@ class GeojsonUploadController extends Controller
 
     public function store(Request $request, Kegiatan $kegiatan)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah wilayah.');
+        }
+
         $request->validate([
             'file' => ['required', 'file', 'max:30720'],
             'level' => ['required', 'in:desa,subsls'],
@@ -165,6 +169,10 @@ class GeojsonUploadController extends Controller
 
     public function destroy(Kegiatan $kegiatan, GeojsonUpload $upload)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu.');
+        }
+
         $remaining = GeojsonUpload::where('kegiatan_id', $kegiatan->id)->count();
 
         if ($remaining <= 1) {

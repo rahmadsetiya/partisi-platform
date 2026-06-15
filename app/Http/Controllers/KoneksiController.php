@@ -69,6 +69,10 @@ class KoneksiController extends Controller
      */
     public function store(Request $request, Kegiatan $kegiatan)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah koneksi.');
+        }
+
         $data = $request->validate([
             'a_id' => ['required', 'integer'],
             'b_id' => ['required', 'integer', 'different:a_id'],
@@ -120,6 +124,10 @@ class KoneksiController extends Controller
     public function destroy(Kegiatan $kegiatan, KegiatanOverride $override)
     {
         abort_unless($override->kegiatan_id === $kegiatan->id, 404);
+
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu.');
+        }
 
         $override->delete();
 

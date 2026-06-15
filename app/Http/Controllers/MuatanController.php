@@ -41,6 +41,10 @@ class MuatanController extends Controller
 
     public function seragam(Request $request, Kegiatan $kegiatan)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah muatan.');
+        }
+
         $data = $request->validate([
             'nilai' => ['required', 'integer', 'min:0'],
         ]);
@@ -54,6 +58,10 @@ class MuatanController extends Controller
 
     public function import(Request $request, Kegiatan $kegiatan)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah muatan.');
+        }
+
         $data = $request->validate([
             'nama_file' => ['nullable', 'string', 'max:255'],
             'map' => ['required', 'array', 'min:1'],
@@ -95,6 +103,10 @@ class MuatanController extends Controller
 
     public function manual(Request $request, Kegiatan $kegiatan)
     {
+        if ($kegiatan->adaPartisiFinal()) {
+            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah muatan.');
+        }
+
         $data = $request->validate([
             'rows' => ['required', 'array', 'min:1'],
             'rows.*.subsls_id' => ['required', 'integer'],
