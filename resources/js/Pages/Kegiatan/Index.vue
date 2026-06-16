@@ -1,13 +1,17 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import InputText from 'primevue/inputtext';
+import { FilterMatchMode } from '@primevue/core/api';
 
 defineProps({
     kegiatan: Array,
 });
 
-const flash = computed(() => usePage().props.flash);
+const filters = ref({ global: { value: null, matchMode: FilterMatchMode.CONTAINS } });
 
 function hapus(kegiatan) {
     if (confirm(`Hapus kegiatan "${kegiatan.nama}"? Tindakan ini tidak dapat dibatalkan.`)) {
@@ -47,46 +51,38 @@ const statusStyle = {
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8 space-y-4">
 
 
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                    <div v-if="kegiatan.length === 0" class="p-8 text-center text-gray-500">
-                        Belum ada kegiatan. <Link :href="route('kegiatan.create')" class="text-indigo-600 hover:underline">Buat kegiatan pertama.</Link>
-                    </div>
+                <div class="bg-white shadow-sm sm:rounded-lg p-4">
+                    <DataTable :value="kegiatan" paginator :rows="10" :rowsPerPageOptions="[10, 25, 50]"
+                        v-model:filters="filters" :globalFilterFields="['nama', 'jenis', 'tahun', 'gelombang', 'status']"
+                        dataKey="id" removableSort stripedRows class="text-sm">
+                        <template #header>
+                            <div class="flex justify-end">
+                                <InputText v-model="filters['global'].value" placeholder="Cari kegiatan…" class="text-sm" />
+                            </div>
+                        </template>
+                        <template #empty><div class="p-6 text-center text-gray-500">Belum ada kegiatan.</div></template>
 
-                    <table v-else class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nama Kegiatan</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Jenis</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tahun</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Gelombang</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tanggal Mulai</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            <tr v-for="k in kegiatan" :key="k.id" class="hover:bg-gray-50">
-                                <td class="px-6 py-4">
-                                    <Link :href="route('kegiatan.show', k.id)" class="font-medium text-gray-900 hover:text-indigo-600">
-                                        {{ k.nama }}
-                                    </Link>
-                                </td>
-                                <td class="px-6 py-4 text-sm capitalize text-gray-600">{{ k.jenis }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">{{ k.tahun }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">{{ k.gelombang ?? '-' }}</td>
-                                <td class="px-6 py-4">
-                                    <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize', statusStyle[k.status]]">
-                                        {{ k.status }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-600">{{ formatTanggal(k.tanggal_mulai) }}</td>
-                                <td class="px-6 py-4 text-right text-sm">
-                                    <Link :href="route('kegiatan.edit', k.id)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</Link>
-                                    <button @click="hapus(k)" class="text-red-600 hover:text-red-800">Hapus</button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                        <Column field="nama" header="Nama Kegiatan" sortable>
+                            <template #body="{ data }">
+                                <Link :href="route('kegiatan.show', data.id)" class="font-medium text-indigo-600 hover:underline">{{ data.nama }}</Link>
+                            </template>
+                        </Column>
+                        <Column field="jenis" header="Jenis" sortable><template #body="{ data }"><span class="capitalize">{{ data.jenis }}</span></template></Column>
+                        <Column field="tahun" header="Tahun" sortable />
+                        <Column field="gelombang" header="Gelombang" sortable><template #body="{ data }">{{ data.gelombang ?? '-' }}</template></Column>
+                        <Column field="status" header="Status" sortable>
+                            <template #body="{ data }">
+                                <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize', statusStyle[data.status]]">{{ data.status }}</span>
+                            </template>
+                        </Column>
+                        <Column field="tanggal_mulai" header="Tanggal Mulai" sortable><template #body="{ data }">{{ formatTanggal(data.tanggal_mulai) }}</template></Column>
+                        <Column header="Aksi">
+                            <template #body="{ data }">
+                                <Link :href="route('kegiatan.edit', data.id)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</Link>
+                                <button @click="hapus(data)" class="text-red-600 hover:text-red-800">Hapus</button>
+                            </template>
+                        </Column>
+                    </DataTable>
                 </div>
             </div>
         </div>

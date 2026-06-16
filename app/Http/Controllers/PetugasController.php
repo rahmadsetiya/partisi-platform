@@ -13,29 +13,19 @@ class PetugasController extends Controller
 {
     public function index(Request $request)
     {
-        $q = trim((string) $request->query('q', ''));
-
         $user = $request->user();
 
+        // Koleksi penuh (ter-scope satker) — pencarian/sortir/paginasi di klien (DataTable).
         $petugas = Petugas::query()
             ->withCount('kegiatanPetugas')
             ->when($user->role !== 'admin', fn ($query) => $query->where('satker', $user->satker))
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($w) use ($q) {
-                    $w->where('nama', 'like', "%{$q}%")
-                        ->orWhere('nip', 'like', "%{$q}%")
-                        ->orWhere('satker', 'like', "%{$q}%");
-                });
-            })
             ->orderBy('nama')
-            ->paginate(25)
-            ->withQueryString();
+            ->get();
 
-        $this->lampirkanBeban($petugas->getCollection());
+        $this->lampirkanBeban($petugas);
 
         return Inertia::render('Petugas/Index', [
             'petugas' => $petugas,
-            'filters' => ['q' => $q],
         ]);
     }
 

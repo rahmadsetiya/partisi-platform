@@ -7,25 +7,19 @@ import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import * as XLSX from 'xlsx';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import InputText from 'primevue/inputtext';
+import { FilterMatchMode } from '@primevue/core/api';
 
-const props = defineProps({
-    petugas: Object,  // paginator
-    filters: Object,  // { q }
+defineProps({
+    petugas: Array,
 });
 
-const flash = computed(() => usePage().props.flash);
-const cari = ref(props.filters.q ?? '');
-
-function submitCari() {
-    router.get(route('petugas.index'), { q: cari.value }, { preserveState: true, replace: true });
-}
-
-function gotoPage(url) {
-    if (url) router.get(url, {}, { preserveState: true, preserveScroll: true });
-}
+const filters = ref({ global: { value: null, matchMode: FilterMatchMode.CONTAINS } });
 
 // ---------- Modal Tambah/Edit ----------
 const showForm = ref(false);
@@ -169,66 +163,49 @@ function kirimImport() {
                     </div>
                 </div>
 
-                <!-- Pencarian -->
-                <form @submit.prevent="submitCari" class="flex items-center gap-2">
-                    <input v-model="cari" type="text" placeholder="Cari nama / NIP / satker"
-                        class="w-72 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" />
-                    <SecondaryButton type="submit">Cari</SecondaryButton>
-                </form>
+                <div class="bg-white shadow-sm sm:rounded-lg p-4">
+                    <DataTable :value="petugas" paginator :rows="10" :rowsPerPageOptions="[10, 25, 50]"
+                        v-model:filters="filters" :globalFilterFields="['nama', 'nip', 'satker', 'jenis']"
+                        dataKey="id" removableSort stripedRows class="text-sm">
+                        <template #header>
+                            <div class="flex justify-end">
+                                <InputText v-model="filters['global'].value" placeholder="Cari nama / NIP / satker…" class="text-sm" />
+                            </div>
+                        </template>
+                        <template #empty>
+                            <div class="p-6 text-center text-gray-500">Belum ada petugas. <button type="button" @click="bukaTambah" class="text-indigo-600 hover:underline">Tambah petugas pertama.</button></div>
+                        </template>
 
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                    <div v-if="petugas.data.length === 0" class="p-8 text-center text-gray-500">
-                        Belum ada petugas. <button type="button" @click="bukaTambah" class="text-indigo-600 hover:underline">Tambah petugas pertama.</button>
-                    </div>
-
-                    <table v-else class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nama</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Jenis</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">NIP</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Telepon</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Satuan Kerja</th>
-                                <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Penugasan</th>
-                                <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Kegiatan Aktif</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Beban (final)</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            <tr v-for="p in petugas.data" :key="p.id" class="hover:bg-gray-50">
-                                <td class="px-6 py-4 font-medium text-gray-900">{{ p.nama }}</td>
-                                <td class="px-6 py-4">
-                                    <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', p.jenis === 'organik' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600']">
-                                        {{ p.jenis === 'organik' ? 'Organik' : 'Mitra' }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-600">{{ p.nip ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">{{ p.telepon ?? '-' }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">{{ p.satker ?? '-' }}</td>
-                                <td class="px-6 py-4 text-center text-sm text-gray-600">{{ p.kegiatan_petugas_count }}</td>
-                                <td class="px-6 py-4 text-center text-sm">
-                                    <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', p.aktif_count >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600']">
-                                        {{ p.aktif_count }}<span v-if="p.aktif_count >= 3"> · padat</span>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-right text-sm text-gray-600">{{ (p.muatan_final ?? 0).toLocaleString('id-ID') }}</td>
-                                <td class="px-6 py-4 text-right text-sm">
-                                    <Link :href="route('petugas.show', p.id)" class="mr-3 text-gray-600 hover:text-gray-800">Riwayat</Link>
-                                    <button type="button" @click="bukaEdit(p)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</button>
-                                    <button type="button" @click="confirmingDelete = p" class="text-red-600 hover:text-red-800">Hapus</button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Pagination -->
-                <div v-if="petugas.links.length > 3" class="flex flex-wrap gap-1">
-                    <button v-for="(link, i) in petugas.links" :key="i"
-                        @click="gotoPage(link.url)" :disabled="!link.url" v-html="link.label"
-                        class="px-3 py-1 text-sm rounded border"
-                        :class="link.active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 disabled:opacity-40'" />
+                        <Column field="nama" header="Nama" sortable />
+                        <Column field="jenis" header="Jenis" sortable>
+                            <template #body="{ data }">
+                                <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', data.jenis === 'organik' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600']">
+                                    {{ data.jenis === 'organik' ? 'Organik' : 'Mitra' }}
+                                </span>
+                            </template>
+                        </Column>
+                        <Column field="nip" header="NIP" sortable><template #body="{ data }">{{ data.nip ?? '-' }}</template></Column>
+                        <Column field="telepon" header="Telepon"><template #body="{ data }">{{ data.telepon ?? '-' }}</template></Column>
+                        <Column field="satker" header="Satuan Kerja" sortable><template #body="{ data }">{{ data.satker ?? '-' }}</template></Column>
+                        <Column field="kegiatan_petugas_count" header="Penugasan" sortable />
+                        <Column field="aktif_count" header="Kegiatan Aktif" sortable>
+                            <template #body="{ data }">
+                                <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', data.aktif_count >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600']">
+                                    {{ data.aktif_count }}<span v-if="data.aktif_count >= 3"> · padat</span>
+                                </span>
+                            </template>
+                        </Column>
+                        <Column field="muatan_final" header="Beban (final)" sortable>
+                            <template #body="{ data }">{{ (data.muatan_final ?? 0).toLocaleString('id-ID') }}</template>
+                        </Column>
+                        <Column header="Aksi">
+                            <template #body="{ data }">
+                                <Link :href="route('petugas.show', data.id)" class="mr-3 text-gray-600 hover:text-gray-800">Riwayat</Link>
+                                <button type="button" @click="bukaEdit(data)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</button>
+                                <button type="button" @click="confirmingDelete = data" class="text-red-600 hover:text-red-800">Hapus</button>
+                            </template>
+                        </Column>
+                    </DataTable>
                 </div>
             </div>
         </div>
