@@ -43,6 +43,8 @@ Route::middleware('auth')->group(function () {
 
     // Semua aksi pada satu kegiatan wajib lolos otorisasi 'view' (scoping per satker).
     Route::middleware('can:view,kegiatan')->group(function () {
+        Route::post('kegiatan/{kegiatan}/duplikat', [KegiatanController::class, 'duplicate'])
+            ->name('kegiatan.duplicate');
         Route::get('kegiatan/{kegiatan}/geojson/create', [GeojsonUploadController::class, 'create'])
             ->name('kegiatan.geojson.create');
         Route::post('kegiatan/{kegiatan}/geojson/chunk', [GeojsonUploadController::class, 'storeChunk'])

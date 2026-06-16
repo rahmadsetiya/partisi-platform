@@ -2,8 +2,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import DuplikatKegiatanModal from '@/Components/DuplikatKegiatanModal.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     kegiatan: Object,
@@ -91,6 +92,8 @@ function formatTanggal(str) {
     if (!str) return '-';
     return new Date(str).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
+
+const showDuplikat = ref(false);
 </script>
 
 <template>
@@ -110,6 +113,7 @@ function formatTanggal(str) {
                     <Link :href="route('kegiatan.edit', kegiatan.id)">
                         <SecondaryButton>Edit</SecondaryButton>
                     </Link>
+                    <SecondaryButton @click="showDuplikat = true">Duplikat</SecondaryButton>
                     <DangerButton @click="hapus">Hapus</DangerButton>
                 </div>
             </div>
@@ -341,5 +345,7 @@ function formatTanggal(str) {
 
             </div>
         </div>
+
+        <DuplikatKegiatanModal :show="showDuplikat" :kegiatan="kegiatan" @close="showDuplikat = false" />
     </AuthenticatedLayout>
 </template>

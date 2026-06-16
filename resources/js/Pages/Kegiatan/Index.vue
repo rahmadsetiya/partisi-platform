@@ -6,12 +6,15 @@ import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import InputText from 'primevue/inputtext';
 import { FilterMatchMode } from '@primevue/core/api';
+import DuplikatKegiatanModal from '@/Components/DuplikatKegiatanModal.vue';
 
 defineProps({
     kegiatan: Array,
 });
 
 const filters = ref({ global: { value: null, matchMode: FilterMatchMode.CONTAINS } });
+
+const duplikatTarget = ref(null);
 
 function hapus(kegiatan) {
     if (confirm(`Hapus kegiatan "${kegiatan.nama}"? Tindakan ini tidak dapat dibatalkan.`)) {
@@ -79,6 +82,7 @@ const statusStyle = {
                         <Column header="Aksi">
                             <template #body="{ data }">
                                 <Link :href="route('kegiatan.edit', data.id)" class="mr-3 text-indigo-600 hover:text-indigo-800">Edit</Link>
+                                <button @click="duplikatTarget = data" class="mr-3 text-indigo-600 hover:text-indigo-800">Duplikat</button>
                                 <button @click="hapus(data)" class="text-red-600 hover:text-red-800">Hapus</button>
                             </template>
                         </Column>
@@ -86,5 +90,7 @@ const statusStyle = {
                 </div>
             </div>
         </div>
+
+        <DuplikatKegiatanModal :show="!!duplikatTarget" :kegiatan="duplikatTarget" @close="duplikatTarget = null" />
     </AuthenticatedLayout>
 </template>

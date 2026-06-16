@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreKegiatanRequest;
 use App\Http\Requests\UpdateKegiatanRequest;
+use App\Models\GeojsonUpload;
 use App\Models\Kegiatan;
+use App\Models\KegiatanOverride;
 use App\Models\KegiatanPetugas;
+use App\Models\KegiatanWilayah;
 use App\Models\Petugas;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class KegiatanController extends Controller
@@ -114,6 +118,105 @@ class KegiatanController extends Controller
 
         return redirect()->route('kegiatan.index')
             ->with('success', 'Kegiatan berhasil dihapus.');
+    }
+
+    /**
+     * Duplikasi kegiatan sebagai draft baru (template). Hasil partisi
+     * (sesi_partisi / partisi_detail) tidak pernah ikut — kegiatan baru
+     * mulai bersih. Wilayah/petugas/koneksi opsional via checkbox modal.
+     */
+    public function duplicate(Request $request, Kegiatan $kegiatan)
+    {
+        $this->authorize('view', $kegiatan);
+
+        $data = $request->validate([
+            'nama' => ['required', 'string', 'max:255'],
+            'salin_wilayah' => ['boolean'],
+            'salin_petugas' => ['boolean'],
+            'salin_koneksi' => ['boolean'],
+        ]);
+
+        $baru = DB::transaction(function () use ($kegiatan, $data, $request) {
+            $userId = $request->user()->id;
+
+            $baru = Kegiatan::create([
+                'nama' => $data['nama'],
+                'jenis' => $kegiatan->jenis,
+                'tahun' => $kegiatan->tahun,
+                'gelombang' => $kegiatan->gelombang,
+                'tanggal_mulai' => $kegiatan->tanggal_mulai,
+                'tanggal_selesai' => $kegiatan->tanggal_selesai,
+                'deskripsi' => $kegiatan->deskripsi,
+                'status' => 'draft',
+                'satker' => $kegiatan->satker,
+                'created_by' => $userId,
+            ]);
+
+            if ($request->boolean('salin_wilayah')) {
+                $wilayah = KegiatanWilayah::where('kegiatan_id', $kegiatan->id)
+                    ->get(['subsls_id', 'muatan', 'muatan_col'])
+                    ->map(fn ($w) => [
+                        'kegiatan_id' => $baru->id,
+                        'subsls_id' => $w->subsls_id,
+                        'muatan' => $w->muatan,
+                        'muatan_col' => $w->muatan_col,
+                    ])->all();
+                foreach (array_chunk($wilayah, 500) as $chunk) {
+                    KegiatanWilayah::insert($chunk);
+                }
+
+                // Salin metadata riwayat upload (file fisik dipakai bersama).
+                foreach (GeojsonUpload::where('kegiatan_id', $kegiatan->id)->get() as $u) {
+                    GeojsonUpload::create([
+                        'kegiatan_id' => $baru->id,
+                        'level' => $u->level,
+                        'nama_file' => $u->nama_file,
+                        'path' => $u->path,
+                        'muatan_col' => $u->muatan_col,
+                        'epsg' => $u->epsg,
+                        'jumlah_fitur' => $u->jumlah_fitur,
+                        'uploaded_by' => $userId,
+                        'uploaded_at' => now(),
+                    ]);
+                }
+            }
+
+            if ($request->boolean('salin_petugas')) {
+                $petugas = KegiatanPetugas::where('kegiatan_id', $kegiatan->id)
+                    ->get(['petugas_id', 'peran', 'label', 'group_id'])
+                    ->map(fn ($p) => [
+                        'kegiatan_id' => $baru->id,
+                        'petugas_id' => $p->petugas_id,
+                        'peran' => $p->peran,
+                        'label' => $p->label,
+                        'group_id' => $p->group_id,
+                    ])->all();
+                if ($petugas) {
+                    KegiatanPetugas::insert($petugas);
+                }
+            }
+
+            if ($request->boolean('salin_koneksi')) {
+                $koneksi = KegiatanOverride::where('kegiatan_id', $kegiatan->id)
+                    ->get(['idsubsls_a', 'idsubsls_b', 'tipe', 'catatan'])
+                    ->map(fn ($o) => [
+                        'kegiatan_id' => $baru->id,
+                        'idsubsls_a' => $o->idsubsls_a,
+                        'idsubsls_b' => $o->idsubsls_b,
+                        'tipe' => $o->tipe,
+                        'catatan' => $o->catatan,
+                        'created_by' => $userId,
+                    ])->all();
+                if ($koneksi) {
+                    KegiatanOverride::insert($koneksi);
+                }
+            }
+
+            return $baru;
+        });
+
+        return redirect()->route('kegiatan.show', $baru)
+            ->with('success', 'Kegiatan berhasil diduplikasi sebagai draft baru.');
     }
 
     public function updateStatus(Request $request, Kegiatan $kegiatan)
