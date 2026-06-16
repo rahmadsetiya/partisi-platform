@@ -22,149 +22,121 @@ class GeojsonUploadController extends Controller
         ]);
     }
 
-    public function store(Request $request, Kegiatan $kegiatan)
+    /**
+     * Terima GeoJSON yang diparse di klien secara bertahap (chunk) — menghindari
+     * limit upload PHP (post/upload_max_filesize) & hemat memori untuk file besar.
+     */
+    public function storeChunk(Request $request, Kegiatan $kegiatan)
     {
-        if ($kegiatan->adaPartisiFinal()) {
-            return back()->with('error', 'Kegiatan terkunci karena ada sesi partisi final. Kembalikan sesi ke draft dulu untuk mengubah wilayah.');
-        }
-
-        $request->validate([
-            'file' => ['required', 'file', 'max:30720'],
+        $data = $request->validate([
+            'chunk_index' => ['required', 'integer', 'min:0'],
+            'is_first' => ['required', 'boolean'],
+            'is_last' => ['required', 'boolean'],
+            'nama_file' => ['required', 'string', 'max:255'],
             'level' => ['required', 'in:desa,subsls'],
-            'sumber_muatan' => ['required', 'in:kolom,seragam,kosong'],
-            // muatan_col hanya wajib kalau sumber = kolom
-            'muatan_col' => ['nullable', 'required_if:sumber_muatan,kolom', 'string', 'max:100'],
+            'muatan_col' => ['nullable', 'string', 'max:100'],
+            'total_fitur' => ['nullable', 'integer', 'min:0'],
+            'features' => ['required', 'array', 'min:1'],
+            'features.*.properties' => ['required', 'array'],
+            'features.*.geometry' => ['required', 'array'],
+            'features.*.muatan' => ['nullable', 'numeric'],
         ]);
 
-        $file = $request->file('file');
-        $content = file_get_contents($file->getRealPath());
-        $geoJson = json_decode($content, true);
-
-        if (! $geoJson || ($geoJson['type'] ?? null) !== 'FeatureCollection' || empty($geoJson['features'])) {
-            return back()->withErrors(['file' => 'File bukan FeatureCollection GeoJSON yang valid.']);
+        if ($data['is_first'] && $kegiatan->adaPartisiFinal()) {
+            return response()->json(['message' => 'Kegiatan terkunci karena ada sesi partisi final.'], 422);
         }
 
-        $features = $geoJson['features'];
-        $sumber = $request->sumber_muatan;
-        $jumlah = count($features);
         $now = now()->toDateTimeString();
+        $muatanCol = $data['muatan_col'] ?: null;
 
-        // Label sumber muatan disimpan di kolom muatan_col (audit trail)
-        $muatanCol = match ($sumber) {
-            'kolom' => $request->muatan_col,
-            'seragam' => '(seragam)',
-            'kosong' => null,
-        };
-
-        $path = $file->store('geojson', 'local');
-
-        DB::beginTransaction();
-        try {
-            KegiatanWilayah::where('kegiatan_id', $kegiatan->id)->delete();
-
-            foreach (array_chunk($features, 500) as $chunk) {
-                $subslsRows = [];
-
-                foreach ($chunk as $feature) {
-                    $props = $feature['properties'] ?? [];
-                    $idsubsls = isset($props['idsubsls']) ? (string) $props['idsubsls'] : null;
-                    if (! $idsubsls) {
-                        continue;
-                    }
-
-                    [$lat, $lon] = self::centroid($feature['geometry']);
-
-                    $subslsRows[] = [
-                        'idsubsls' => $idsubsls,
-                        'kdsubsls' => (string) ($props['kdsubsls'] ?? ''),
-                        'kdprov' => (string) ($props['kdprov'] ?? ''),
-                        'nmprov' => (string) ($props['nmprov'] ?? ''),
-                        'kdkab' => (string) ($props['kdkab'] ?? ''),
-                        'nmkab' => (string) ($props['nmkab'] ?? ''),
-                        'kdkec' => (string) ($props['kdkec'] ?? ''),
-                        'nmkec' => (string) ($props['nmkec'] ?? ''),
-                        'kddesa' => (string) ($props['kddesa'] ?? ''),
-                        'nmdesa' => (string) ($props['nmdesa'] ?? ''),
-                        'kdsls' => (string) ($props['kdsls'] ?? ''),
-                        'nmsls' => (string) ($props['nmsls'] ?? ''),
-                        'idsls' => isset($props['idsls']) ? (string) $props['idsls'] : null,
-                        'geometry' => json_encode($feature['geometry']),
-                        'centroid_lat' => $lat,
-                        'centroid_lon' => $lon,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-                }
-
-                if (empty($subslsRows)) {
-                    continue;
-                }
-
-                DB::table('subsls')->upsert(
-                    $subslsRows,
-                    ['idsubsls'],
-                    ['kdsubsls', 'kdprov', 'nmprov', 'kdkab', 'nmkab',
-                        'kdkec', 'nmkec', 'kddesa', 'nmdesa', 'kdsls', 'nmsls',
-                        'idsls', 'geometry', 'centroid_lat', 'centroid_lon', 'updated_at'],
-                );
-
-                $idsubslsList = array_column($subslsRows, 'idsubsls');
-                $subslsMap = DB::table('subsls')
-                    ->whereIn('idsubsls', $idsubslsList)
-                    ->pluck('id', 'idsubsls');
-
-                $wilayahRows = [];
-                foreach ($chunk as $feature) {
-                    $props = $feature['properties'] ?? [];
-                    $idsubsls = isset($props['idsubsls']) ? (string) $props['idsubsls'] : null;
-                    if (! $idsubsls || ! isset($subslsMap[$idsubsls])) {
-                        continue;
-                    }
-
-                    $muatan = match ($sumber) {
-                        'kolom' => (int) ($props[$muatanCol] ?? 0),
-                        'seragam' => 1,
-                        'kosong' => null,
-                    };
-
-                    $wilayahRows[] = [
-                        'kegiatan_id' => $kegiatan->id,
-                        'subsls_id' => $subslsMap[$idsubsls],
-                        'muatan' => $muatan,
-                        'muatan_col' => $muatanCol,
-                        'created_at' => $now,
-                    ];
-                }
-
-                if (! empty($wilayahRows)) {
-                    DB::table('kegiatan_wilayah')->insert($wilayahRows);
-                }
+        DB::transaction(function () use ($data, $kegiatan, $now, $muatanCol) {
+            if ($data['is_first']) {
+                KegiatanWilayah::where('kegiatan_id', $kegiatan->id)->delete();
             }
 
+            $subslsRows = [];
+            foreach ($data['features'] as $f) {
+                $props = $f['properties'];
+                $idsubsls = isset($props['idsubsls']) ? (string) $props['idsubsls'] : null;
+                if (! $idsubsls) {
+                    continue;
+                }
+                [$lat, $lon] = self::centroid($f['geometry']);
+
+                $subslsRows[] = [
+                    'idsubsls' => $idsubsls,
+                    'kdsubsls' => (string) ($props['kdsubsls'] ?? ''),
+                    'kdprov' => (string) ($props['kdprov'] ?? ''),
+                    'nmprov' => (string) ($props['nmprov'] ?? ''),
+                    'kdkab' => (string) ($props['kdkab'] ?? ''),
+                    'nmkab' => (string) ($props['nmkab'] ?? ''),
+                    'kdkec' => (string) ($props['kdkec'] ?? ''),
+                    'nmkec' => (string) ($props['nmkec'] ?? ''),
+                    'kddesa' => (string) ($props['kddesa'] ?? ''),
+                    'nmdesa' => (string) ($props['nmdesa'] ?? ''),
+                    'kdsls' => (string) ($props['kdsls'] ?? ''),
+                    'nmsls' => (string) ($props['nmsls'] ?? ''),
+                    'idsls' => isset($props['idsls']) ? (string) $props['idsls'] : null,
+                    'geometry' => json_encode($f['geometry']),
+                    'centroid_lat' => $lat,
+                    'centroid_lon' => $lon,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if (empty($subslsRows)) {
+                return;
+            }
+
+            DB::table('subsls')->upsert(
+                $subslsRows,
+                ['idsubsls'],
+                ['kdsubsls', 'kdprov', 'nmprov', 'kdkab', 'nmkab',
+                    'kdkec', 'nmkec', 'kddesa', 'nmdesa', 'kdsls', 'nmsls',
+                    'idsls', 'geometry', 'centroid_lat', 'centroid_lon', 'updated_at'],
+            );
+
+            $subslsMap = DB::table('subsls')
+                ->whereIn('idsubsls', array_column($subslsRows, 'idsubsls'))
+                ->pluck('id', 'idsubsls');
+
+            $wilayahRows = [];
+            foreach ($data['features'] as $f) {
+                $idsubsls = isset($f['properties']['idsubsls']) ? (string) $f['properties']['idsubsls'] : null;
+                if (! $idsubsls || ! isset($subslsMap[$idsubsls])) {
+                    continue;
+                }
+                $wilayahRows[] = [
+                    'kegiatan_id' => $kegiatan->id,
+                    'subsls_id' => $subslsMap[$idsubsls],
+                    'muatan' => isset($f['muatan']) && $f['muatan'] !== null ? (int) round((float) $f['muatan']) : null,
+                    'muatan_col' => $muatanCol,
+                    'created_at' => $now,
+                ];
+            }
+            if (! empty($wilayahRows)) {
+                DB::table('kegiatan_wilayah')->insert($wilayahRows);
+            }
+        });
+
+        if ($data['is_last']) {
             GeojsonUpload::create([
                 'kegiatan_id' => $kegiatan->id,
-                'level' => $request->level,
-                'nama_file' => $file->getClientOriginalName(),
-                'path' => $path,
+                'level' => $data['level'],
+                'nama_file' => $data['nama_file'],
+                'path' => '(chunked)',
                 'muatan_col' => $muatanCol,
-                'jumlah_fitur' => $jumlah,
+                'jumlah_fitur' => $data['total_fitur'] ?? 0,
                 'uploaded_by' => $request->user()->id,
             ]);
 
-            DB::commit();
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            Storage::disk('local')->delete($path);
+            $request->session()->flash('success', "GeoJSON '{$data['nama_file']}' berhasil diproses (".($data['total_fitur'] ?? 0).' fitur).');
 
-            return back()->withErrors(['file' => 'Gagal memproses GeoJSON: '.$e->getMessage()]);
+            return response()->json(['done' => true]);
         }
 
-        $pesan = "GeoJSON berhasil diupload. {$jumlah} SubSLS berhasil dimuat.";
-        if ($sumber === 'kosong') {
-            $pesan .= ' Muatan belum diisi — lengkapi lewat menu Kelola Muatan.';
-        }
-
-        return redirect()->route('kegiatan.show', $kegiatan)->with('success', $pesan);
+        return response()->json(['ok' => true]);
     }
 
     public function destroy(Kegiatan $kegiatan, GeojsonUpload $upload)

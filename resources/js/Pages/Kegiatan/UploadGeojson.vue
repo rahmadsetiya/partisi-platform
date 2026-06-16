@@ -23,6 +23,10 @@ const form = useForm({
 
 const preview = ref(null);
 const fileError = ref('');
+const geoFeatures = ref([]); // hasil parse mentah untuk dikirim bertahap
+const namaFile = ref('');
+const uploading = ref(false);
+const progress = ref(0);
 
 // Kolom identifier (idsubsls, kode/nama wilayah) — bukan kandidat muatan walau berisi angka.
 function isIdentifierCol(nama) {
@@ -41,7 +45,7 @@ const adaKolomNumerik = computed(() => {
 
 // Tombol submit boleh aktif?
 const bisaSubmit = computed(() => {
-    if (!preview.value || form.processing) return false;
+    if (!preview.value || uploading.value) return false;
     if (form.sumber_muatan === 'kolom') return !!form.muatan_col;
     return true; // seragam / kosong tidak butuh kolom
 });
@@ -55,8 +59,10 @@ function onFileChange(e) {
     }
 
     form.file = file;
+    namaFile.value = file.name;
     form.muatan_col = '';
     preview.value = null;
+    geoFeatures.value = [];
     fileError.value = '';
 
     const reader = new FileReader();
@@ -76,6 +82,7 @@ function onFileChange(e) {
             form.muatan_col = defaultCol;
 
             preview.value = { jumlah: geo.features.length, kolom };
+            geoFeatures.value = geo.features;
 
             // Auto-pilih sumber muatan: ada kolom muatan → "kolom", kalau tidak → "kosong" (isi nanti)
             form.sumber_muatan = defaultCol ? 'kolom' : 'kosong';
@@ -86,10 +93,54 @@ function onFileChange(e) {
     reader.readAsText(file);
 }
 
-function submit() {
-    form.post(route('kegiatan.geojson.store', props.kegiatan.id), {
-        forceFormData: true,
-    });
+async function submit() {
+    if (!geoFeatures.value.length) return;
+
+    const sumber = form.sumber_muatan;
+    const muatanCol = sumber === 'kolom' ? form.muatan_col : (sumber === 'seragam' ? '(seragam)' : null);
+    const muatanOf = (p) => {
+        if (sumber === 'kolom') {
+            const v = p[form.muatan_col];
+            return v === null || v === undefined || v === '' ? null : Number(v);
+        }
+        if (sumber === 'seragam') return 1;
+        return null;
+    };
+
+    const feats = geoFeatures.value
+        .filter((f) => f.properties && f.properties.idsubsls !== null && f.properties.idsubsls !== undefined)
+        .map((f) => ({ properties: f.properties, geometry: f.geometry, muatan: muatanOf(f.properties) }));
+
+    const total = feats.length;
+    if (!total) {
+        fileError.value = 'Tidak ada fitur dengan properti idsubsls.';
+        return;
+    }
+
+    const SIZE = 150;
+    uploading.value = true;
+    progress.value = 0;
+    fileError.value = '';
+
+    try {
+        for (let i = 0; i < total; i += SIZE) {
+            await window.axios.post(route('kegiatan.geojson.chunk', props.kegiatan.id), {
+                chunk_index: Math.floor(i / SIZE),
+                is_first: i === 0,
+                is_last: i + SIZE >= total,
+                nama_file: namaFile.value,
+                level: form.level,
+                muatan_col: muatanCol,
+                total_fitur: total,
+                features: feats.slice(i, i + SIZE),
+            });
+            progress.value = Math.round((Math.min(i + SIZE, total) / total) * 100);
+        }
+        router.visit(route('kegiatan.show', props.kegiatan.id));
+    } catch (e) {
+        uploading.value = false;
+        fileError.value = e?.response?.data?.message || 'Gagal memproses file. Coba lagi.';
+    }
 }
 
 function hapus(uploadId) {
@@ -185,7 +236,7 @@ function formatTanggal(str) {
                                        file:bg-indigo-50 file:text-indigo-700 file:text-sm file:font-medium
                                        hover:file:bg-indigo-100 cursor-pointer"
                             />
-                            <p class="mt-1 text-xs text-gray-400">Format: .geojson atau .json · Maks. 30 MB</p>
+                            <p class="mt-1 text-xs text-gray-400">Format: .geojson atau .json · file besar diproses bertahap di browser (tanpa batas ukuran upload server).</p>
                             <p v-if="fileError" class="mt-1 text-sm text-red-600">{{ fileError }}</p>
                             <InputError :message="form.errors.file" class="mt-1" />
                         </div>
@@ -239,12 +290,19 @@ function formatTanggal(str) {
                             </div>
                         </div>
 
+                        <div v-if="uploading" class="space-y-1">
+                            <div class="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+                                <div class="h-full bg-indigo-500 transition-all" :style="{ width: progress + '%' }"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 text-center">Memproses {{ progress }}%…</p>
+                        </div>
+
                         <div class="flex items-center justify-end gap-3 pt-1">
                             <Link :href="route('kegiatan.show', kegiatan.id)">
-                                <SecondaryButton type="button">Batal</SecondaryButton>
+                                <SecondaryButton type="button" :disabled="uploading">Batal</SecondaryButton>
                             </Link>
                             <PrimaryButton :disabled="!bisaSubmit">
-                                {{ form.processing ? 'Memproses...' : 'Upload & Proses' }}
+                                {{ uploading ? `Memproses ${progress}%…` : 'Upload & Proses' }}
                             </PrimaryButton>
                         </div>
 
